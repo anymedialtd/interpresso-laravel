@@ -5,19 +5,19 @@ namespace AnyMedia\Interpresso\Services;
 class QueueConfiguration
 {
     /** @return array{max_time: int, max_jobs: int, memory: int, timeout: int} */
-    public static function workerLimits(): array
+    public static function workerLimits(mixed $maxTime = null, mixed $memory = null): array
     {
         return [
-            'max_time' => self::positiveWorkerLimit('max_time', 50),
+            'max_time' => self::positiveWorkerLimit('max_time', 50, $maxTime),
             'max_jobs' => self::positiveWorkerLimit('max_jobs', 100),
-            'memory' => self::positiveWorkerLimit('memory', 128),
+            'memory' => self::positiveWorkerLimit('memory', 96, $memory),
             'timeout' => self::positiveWorkerLimit('timeout', 60),
         ];
     }
 
-    private static function positiveWorkerLimit(string $name, int $default): int
+    private static function positiveWorkerLimit(string $name, int $default, mixed $override = null): int
     {
-        $value = filter_var(config('interpresso.queue_worker.' . $name, $default), FILTER_VALIDATE_INT, [
+        $value = filter_var($override ?? config('interpresso.queue_worker.' . $name, $default), FILTER_VALIDATE_INT, [
             'options' => ['min_range' => 1],
         ]);
 
@@ -27,6 +27,17 @@ class QueueConfiguration
             throw new \InvalidArgumentException('interpresso.queue_worker.' . $name . ' must be a positive integer.');
         }
 
+        return $value;
+    }
+
+    public static function chunkSize(): int
+    {
+        $value = filter_var(config('interpresso.chunk_size', 100), FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+        if ($value === false) {
+            throw new \InvalidArgumentException('interpresso.chunk_size must be a positive integer.');
+        }
         return $value;
     }
 

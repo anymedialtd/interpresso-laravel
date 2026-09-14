@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -84,6 +83,26 @@ trait CanExportTranslation
      */
     protected function updateFileContent(array $translations, string $fullPath, string $type): void
     {
+        File::ensureDirectoryExists(dirname($fullPath));
+        // The lock inode survives atomic replacement of the destination. It
+        // serializes read/merge/rename if a redelivery overlaps its successor.
+        $lockDirectory = storage_path('framework/cache/interpresso-export-locks');
+        File::ensureDirectoryExists($lockDirectory);
+        $canonicalPath = realpath($fullPath) ?: (realpath(dirname($fullPath)) ?: dirname($fullPath)) . '/' . basename($fullPath);
+        $lock = fopen($lockDirectory . '/' . hash('sha256', $canonicalPath), 'c');
+        if ($lock === false) throw new \RuntimeException('Cannot open export file lock.');
+        try {
+            if (!flock($lock, LOCK_EX)) throw new \RuntimeException('Cannot acquire export file lock.');
+            $this->mergeFileContent($translations, $fullPath, $type);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /** @param array<array-key, string|null> $translations */
+    private function mergeFileContent(array $translations, string $fullPath, string $type): void
+    {
         if (!in_array($type, ['json', 'php'])) {
             Log::error('Invalid file extension. Extension must be php or json. ' . $type . ' given. Please check your language folder and rename the extension of this file ' . $fullPath . '.');
         }
@@ -95,7 +114,6 @@ trait CanExportTranslation
             if (!File::isDirectory($directory)) {
                 File::makeDirectory($directory, 0755, true);
             }
-            File::put($fullPath, " ");
         } else {
             if ($type == 'php') {
                 $content = File::getRequire($fullPath);
@@ -158,7 +176,9 @@ trait CanExportTranslation
             $content = $encoded;
         }
 
-        File::put($fullPath, $content);
+        // Write alongside the destination and rename atomically. Killing a worker
+        // during the write leaves the last complete file available for a safe retry.
+        File::replace($fullPath, $content);
     }
 
 
@@ -173,28 +193,31 @@ trait CanExportTranslation
         if (!$modelInstance instanceof Model) {
             throw new \DomainException('Translation namespace must resolve to an Eloquent model.');
         }
-        $tableId = $modelInstance->getKeyName();
-        $modelQuery = DB::table($modelInstance->getTable())->where($tableId, $translation->key);
-        $model = $modelQuery->first();
-        if ($model === null) {
-            throw (new ModelNotFoundException())->setModel($modelInstance::class, [$translation->key]);
-        }
-        if (!property_exists($model, $column)) {
-            throw new \DomainException('Model translation column does not exist: ' . $column . '.');
-        }
-        $data = $model->$column;
-        if (is_string($data)) $data = json_decode($data, true);
-        if (is_object($data)) $data = (array)$data;
-        if ($data !== null && $data !== false && !is_array($data)) {
-            throw new \DomainException('Model translation data must be an array, false or null.');
-        }
-        if ($data === null || $data === false) {
-            $data = [];
-        }
-        $data[$languageCode] = $translation->value;
-        $modelQuery->update([
-            $column => json_encode($data)
-        ]);
+        $modelInstance->getConnection()->transaction(function () use ($modelInstance, $translation, $column, $languageCode): void {
+            $tableId = $modelInstance->getKeyName();
+            $modelQuery = $modelInstance->getConnection()->table($modelInstance->getTable())->where($tableId, $translation->key);
+            // Different language chains can target the same JSON column concurrently.
+            $model = $modelQuery->lockForUpdate()->first();
+            if ($model === null) {
+                throw (new ModelNotFoundException())->setModel($modelInstance::class, [$translation->key]);
+            }
+            if (!property_exists($model, $column)) {
+                throw new \DomainException('Model translation column does not exist: ' . $column . '.');
+            }
+            $data = $model->$column;
+            if (is_string($data)) $data = json_decode($data, true);
+            if (is_object($data)) $data = (array)$data;
+            if ($data !== null && $data !== false && !is_array($data)) {
+                throw new \DomainException('Model translation data must be an array, false or null.');
+            }
+            if ($data === null || $data === false) {
+                $data = [];
+            }
+            $data[$languageCode] = $translation->value;
+            $modelQuery->update([
+                $column => json_encode($data)
+            ]);
+        });
         $translation->update([
             'exported' => true,
         ]);

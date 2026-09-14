@@ -36,6 +36,11 @@ abstract class BaseJob implements ShouldQueue
         return $lock instanceof ProcessLock ? $lock : null;
     }
 
+    public function estimatedJobs(): int
+    {
+        return 1;
+    }
+
     /**
      * @return void
      * @throws \Exception

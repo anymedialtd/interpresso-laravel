@@ -57,7 +57,12 @@ class MissingTranslationService
         if ($this->batch) {
             /** @var list<int> $languageIds Language model primary keys. */
             $languageIds = $this->languages->pluck('id')->toArray();
-            $this->batch->add(new FindMissingTranslationsByLanguage($languageIds, $language->id));
+            foreach ($languageIds as $id) {
+                if ($this->batch->fresh()->cancelled()) break;
+                if ($id !== $language->id) {
+                    $this->batch->add(new FindMissingTranslationsByLanguage([$id], $language->id));
+                }
+            }
         } else {
             $this->findMissingTranslationsByLanguage($this->languages, $language);
         }

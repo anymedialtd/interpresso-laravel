@@ -29,6 +29,9 @@ class BatchProcessor
         $queue = config('interpresso.queue_name');
         return Bus::batch($batchArray)
             ->withOption('process_lock', $lock)
+            // This is an estimate: source data and discovered import files can change.
+            // Never inflate Laravel's totalJobs/pendingJobs with jobs that don't exist.
+            ->withOption('estimated_total_jobs', array_sum(array_map(fn (BaseJob $job): int => $job->estimatedJobs(), $batchArray)))
             ->then(function (Batch $batch) use ($then) {
                 if ($batch->cancelled()) return;
                 if ($then) $then();

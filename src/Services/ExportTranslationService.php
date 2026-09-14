@@ -19,6 +19,45 @@ class ExportTranslationService
 {
     use CanExportTranslation;
 
+    /** Process at most $chunkSize source IDs; return the next cursor for a full slice. */
+    public function exportChunk(Language $language, int $afterId, int $chunkSize, bool $onlyModels = false, bool $force = false): ?int
+    {
+        // Select by stable IDs, not the mutable exported/approved flags: replaying
+        // id > afterId selects the same slice even after some writes committed.
+        $rows = Translation::query()->where('language_id', $language->id)
+            ->where('id', '>', $afterId)
+            ->when($onlyModels, fn ($query) => $query->where('type', 'model'))
+            ->orderBy('id')->limit($chunkSize)->get();
+        try {
+            $files = [];
+            foreach ($rows as $row) {
+                if (!$row->approved || $row->updated_translation || (!$force && $row->exported)) continue;
+                if ($row->type === 'model') {
+                    // Assign the language key, never append: repeating a model write is safe.
+                    $this->updateModelTranslation($row, $language->code);
+                    continue;
+                }
+                $namespace = $row->namespace ?? throw new \DomainException('Cannot export translation with a null namespace.');
+                $group = $row->group ?? throw new \DomainException('Cannot export translation with a null group.');
+                $relative = $language->code . ($row->type === 'json' ? '' : '/' . $group) . '.' . $row->type;
+                $path = App::langPath(($row->is_vendor ? 'vendor/' . $namespace . '/' : '') . $relative);
+                $files[$path]['type'] = $row->type;
+                $files[$path]['values'][$row->key] = $row->value;
+                $files[$path]['ids'][] = $row->id;
+            }
+            foreach ($files as $path => $file) {
+                // Atomic replacement precedes the exported flag. A crash in between
+                // repeats the same keyed merge; it cannot truncate or duplicate keys.
+                $this->updateFileContent($file['values'], $path, $file['type']);
+                Translation::query()->whereIn('id', $file['ids'])->update(['exported' => true]);
+                Translation::invalidateCacheAfterWrite();
+            }
+        } catch (\Exception $e) {
+            throw new ExportTranslationException($e->getMessage(), __('interpresso::exceptions.export_language_error', ['language' => $language->native_name]), 0);
+        }
+        return $rows->count() === $chunkSize ? $rows->last()?->id : null;
+    }
+
     /**
      * @var null|Batch
      */

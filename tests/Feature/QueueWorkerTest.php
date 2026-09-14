@@ -7,6 +7,7 @@ use AnyMedia\Interpresso\Jobs\ImportLanguagesJob;
 use AnyMedia\Interpresso\Models\Language;
 use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translation;
+use AnyMedia\Interpresso\Services\QueueConfiguration;
 use AnyMedia\Interpresso\Tests\BaseTestCase;
 use AnyMedia\Interpresso\Tests\Traits\InteractsWithBackgroundProcesses;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -142,5 +143,16 @@ class QueueWorkerTest extends BaseTestCase
         $this->artisan('interpresso:work')
             ->expectsOutput('Interpresso requires a background queue. Set QUEUE_CONNECTION=database before running interpresso:work.')
             ->assertExitCode(1);
+    }
+
+    #[Test]
+    public function memory_and_time_options_override_the_bounded_defaults(): void
+    {
+        $this->assertSame(96, QueueConfiguration::workerLimits()['memory']);
+        $this->assertSame(64, QueueConfiguration::workerLimits(memory: '64')['memory']);
+        $this->useDatabaseQueue();
+        $this->artisan('interpresso:work', ['--memory' => 256, '--max-time' => 1])->assertExitCode(0);
+        $this->artisan('interpresso:work', ['--memory' => 0])->assertExitCode(1);
+        $this->artisan('interpresso:work', ['--max-time' => 0])->assertExitCode(1);
     }
 }

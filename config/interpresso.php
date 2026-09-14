@@ -108,13 +108,16 @@ return [
 
     'batch_name' => 'languageBatch',
 
+    // Maximum source rows per cursor job. Lower this on hosts with short process caps.
+    'chunk_size' => env('INTERPRESSO_CHUNK_SIZE', 100),
+
     // Bounded queue:work invocation for cron. All limits must be positive integers.
     // max_time (seconds) and memory (MB) are checked between jobs; timeout is
     // Laravel's per-job limit in seconds (requires PCNTL in PHP CLI).
     'queue_worker' => [
         'max_time' => env('INTERPRESSO_QUEUE_WORKER_MAX_TIME', 50),
         'max_jobs' => env('INTERPRESSO_QUEUE_WORKER_MAX_JOBS', 100),
-        'memory' => env('INTERPRESSO_QUEUE_WORKER_MEMORY', 128),
+        'memory' => env('INTERPRESSO_QUEUE_WORKER_MEMORY', 96),
         'timeout' => env('INTERPRESSO_QUEUE_WORKER_TIMEOUT', 60),
     ],
 
@@ -123,13 +126,15 @@ return [
     // invoke php artisan schedule:run from one cron entry every minute.
     'schedule' => [
         'queue_worker' => env('INTERPRESSO_SCHEDULE_QUEUE_WORKER', false),
+        // Uses an in-process foreground callback if disabled or proc_open is unavailable.
+        'worker_background' => env('INTERPRESSO_SCHEDULE_WORKER_BACKGROUND', true),
         'prune_batches' => env('INTERPRESSO_SCHEDULE_PRUNE_BATCHES', false),
         'pending_notifications' => env('INTERPRESSO_SCHEDULE_PENDING_NOTIFICATIONS', false),
     ],
 
     // Seconds before an abandoned process lock expires. Long imports should
     // heartbeat through the acquired ProcessLock handle's refresh() method.
-    'process_lock_ttl' => env('INTERPRESSO_PROCESS_LOCK_TTL', 900),
+    'process_lock_ttl' => env('INTERPRESSO_PROCESS_LOCK_TTL', 1800),
 
     'prune_batch_hours' => 24, // Prunes all finished or cancelled batches older than this value (value in hours)
 

@@ -48,15 +48,22 @@ class BatchService {
             $id = is_string($value) ? $value : null;
         }
         $batch = $id !== null ? Bus::findBatch($id) : null;
-        if ($batch !== null && $batch->name !== config('interpresso.batch_name')) {
+        if ($batch === null) {
+            return ['id' => null, 'progress' => 0, 'finished' => true, 'cancelled' => false, 'failed' => false];
+        }
+        if ($batch->name !== config('interpresso.batch_name')) {
             abort(403);
         }
+        $estimate = $batch->options['estimated_total_jobs'] ?? 0;
+        $total = max($batch->totalJobs, is_int($estimate) ? $estimate : 0);
+        $progress = $batch->finished() ? 100 : ($total > 0
+            ? min(99, (int) round($batch->processedJobs() / $total * 100)) : 0);
         return [
-            'id' => $batch?->id,
-            'progress' => $batch?->progress() ?? 0,
-            'finished' => $batch === null || $batch->finished() || $batch->cancelled(),
-            'cancelled' => $batch?->cancelled() ?? false,
-            'failed' => ($batch->failedJobs ?? 0) > 0,
+            'id' => $batch->id,
+            'progress' => $progress,
+            'finished' => $batch->finished() || $batch->cancelled(),
+            'cancelled' => $batch->cancelled(),
+            'failed' => $batch->failedJobs > 0,
         ];
     }
 }

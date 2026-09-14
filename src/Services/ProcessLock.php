@@ -12,7 +12,7 @@ class ProcessLock
 {
     private ?string $owner = null;
     private ?string $startedAt = null;
-    private int $ttlSeconds = 900;
+    private int $ttlSeconds = 1800;
 
     public static function owner(string $operation): string
     {
@@ -23,7 +23,7 @@ class ProcessLock
 
     public static function defaultTtl(): int
     {
-        $ttl = config('interpresso.process_lock_ttl', 900);
+        $ttl = config('interpresso.process_lock_ttl', 1800);
         if (!is_numeric($ttl) || (int) $ttl < 1) {
             throw new \InvalidArgumentException('interpresso.process_lock_ttl must be positive.');
         }

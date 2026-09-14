@@ -3,6 +3,8 @@
 namespace AnyMedia\Interpresso;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -27,6 +29,7 @@ use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\OpenAITranslationService;
 use AnyMedia\Interpresso\Services\QueueConfiguration;
+use AnyMedia\Interpresso\Services\ProcessCapabilities;
 
 
 class InterpressoServiceProvider extends ServiceProvider
@@ -72,21 +75,30 @@ class InterpressoServiceProvider extends ServiceProvider
                 return;
             }
 
+            $canSpawn = resolve(ProcessCapabilities::class)->canSpawn();
+            $command = static function (string $name, bool $foreground = false) use ($schedule, $canSpawn): Event {
+                if ($canSpawn && !$foreground) return $schedule->command($name);
+                // Even a foreground command event uses Symfony Process/proc_open.
+                // A named callback executes Artisan inside the scheduler process.
+                return $schedule->call(static fn (): int => Artisan::call($name))->name($name);
+            };
+
             // Run maintenance before starting a fresh worker so it can release
             // its operation lease before newly queued jobs start executing.
             if (config('interpresso.schedule.prune_batches', false)) {
-                $schedule->command('interpresso:prune-batches')->everyMinute()->withoutOverlapping();
+                $command('interpresso:prune-batches')->everyMinute()->withoutOverlapping();
             }
             if (config('interpresso.schedule.pending_notifications', false)) {
-                $schedule->command('interpresso:send-automatic-pending-translations-notification')->daily()->withoutOverlapping();
+                $command('interpresso:send-automatic-pending-translations-notification')->daily()->withoutOverlapping();
             }
             if (config('interpresso.schedule.queue_worker', false)) {
                 // Laravel's cache mutex prevents overlapping scheduled workers.
                 // ProcessLock is a separate DB lease guarding operations across
                 // HTTP, CLI and batch jobs; neither lock replaces the other.
-                $schedule->command('interpresso:work')->everyMinute()
-                    ->withoutOverlapping(QueueConfiguration::workerOverlapMinutes())
-                    ->runInBackground();
+                $background = $canSpawn && config('interpresso.schedule.worker_background', true);
+                $worker = $command('interpresso:work', !$background)->everyMinute()
+                    ->withoutOverlapping(QueueConfiguration::workerOverlapMinutes());
+                if ($background) $worker->runInBackground();
             }
         });
     }

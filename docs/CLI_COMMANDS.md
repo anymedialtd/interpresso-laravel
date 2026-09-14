@@ -6,7 +6,7 @@ This reference matches the eleven commands registered from `src/Console/Commands
 
 The working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
 
-`interpresso.process_lock_ttl` defaults to 900 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
+`interpresso.process_lock_ttl` defaults to 1800 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
 
 The local guard queries `jobs` for `interpresso.queue_name` (default `languageProcessor`) and `job_batches` for `interpresso.batch_name` (default `languageBatch`) on the default database connection. Keep that connection consistent with the application's queue/batch setup. Unreachable or non-success peer responses are ignored during the busy check.
 
@@ -22,7 +22,7 @@ New installations use `db_loader=true`. Normal export and developer download pas
 
 DB-loader web rendering requires the database; the database-error file-loader fallback only applies during console loader registration under `runningInConsole()`, not later lookups. `CACHE_DRIVER` must not be `database` in DB mode; the same applies to `CACHE_STORE` when used by the host application. Use a non-database cache shared appropriately by web processes, workers, and participating hosts.
 
-The signatures below list all command-specific arguments/options. `interpresso:export-translations` has a value-taking `--force=` option, and `interpresso:unlock` has a boolean `--force` switch. Export also accepts `--language=` and `--only-models`. Approval accepts `--translator=` and `--language=`. The other commands have no command-specific options.
+The signatures below list all command-specific arguments/options. `interpresso:export-translations` has a value-taking `--force=` option, and `interpresso:unlock` has a boolean `--force` switch. Export also accepts `--language=` and `--only-models`. Approval accepts `--translator=` and `--language=`. The bounded worker accepts `--max-time=` and `--memory=`. The other commands have no command-specific options.
 
 ## interpresso:import-languages
 
@@ -136,14 +136,14 @@ php artisan interpresso:export-translations-deployment
 Signature:
 
 ```text
-interpresso:work
+interpresso:work [--max-time=SECONDS] [--memory=MB]
 ```
 
-Drains `interpresso.queue_name` on the default queue connection by calling `queue:work` with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=128`, `--timeout=60`, `--sleep=0`, and `--tries=1`. It exits 0 on an empty queue or normal time/job budget stop. Remaining work continues on the next cron tick. Non-deferring connections and invalid limits return 1; other exit codes come from the worker. Check failed-job records and logs even after exit 0.
+Drains `interpresso.queue_name` on the default queue connection by calling `queue:work` with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=96`, `--timeout=60`, `--sleep=0`, and `--tries=1`. It exits 0 on an empty queue or normal time/job budget stop. Remaining work continues on the next cron tick. Non-deferring connections and invalid limits return 1; other exit codes come from the worker. Check failed-job records and logs even after exit 0.
 
-Configure positive integer values in `interpresso.queue_worker.max_time`, `max_jobs`, `memory`, and `timeout`. Time and memory limits are checked between jobs; interrupting a stuck job at its per-job timeout requires PHP CLI PCNTL or a hosting process limit. See [limits and scheduler configuration](CONFIGURATION.md#cron-without-supervisor). There are no command-specific options.
+Configure positive integer values in `interpresso.queue_worker.max_time`, `max_jobs`, `memory`, and `timeout`. Time and memory limits are checked between jobs; interrupting a stuck job at its per-job timeout requires PHP CLI PCNTL or a hosting process limit. See [limits and scheduler configuration](CONFIGURATION.md#cron-without-supervisor). `--max-time=30` and `--memory=64` override the corresponding configured limits for one invocation. Cursor jobs use `interpresso.chunk_size` (`INTERPRESSO_CHUNK_SIZE`, default 100 source rows), chain their successors in the same batch, and refresh its process lease at every slice. A killed reservation replays only its current slice; actual processing exceptions fail the batch.
 
-Enable `interpresso.schedule.queue_worker` to run every minute in the background. Laravel's cache mutex prevents overlapping scheduled workers and is separate from the operation's database lease. A direct invocation does not acquire the scheduler mutex. All package schedules are omitted for connections that cannot defer work.
+Enable `interpresso.schedule.queue_worker` to run every minute. `interpresso.schedule.worker_background` controls background execution; a missing or disabled `proc_open` automatically selects an in-process foreground callback. Use the host's explicit PHP CLI binary in cron (for example `/usr/local/bin/php83`), since its default `php` may be older than the website's version. Five- and fifteen-minute cron intervals work with proportionally delayed processing; keep the lease TTL above the interval plus worker runtime and scheduling delay. Laravel's cache mutex prevents overlapping scheduled workers and is separate from the operation's database lease. A direct invocation does not acquire the scheduler mutex. All package schedules are omitted for connections that cannot defer work.
 
 ```bash
 php artisan interpresso:work

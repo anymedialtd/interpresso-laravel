@@ -3,6 +3,8 @@
 namespace AnyMedia\Interpresso\Tests\Feature;
 
 use AnyMedia\Interpresso\Tests\BaseTestCase;
+use AnyMedia\Interpresso\Services\ProcessCapabilities;
+use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -105,5 +107,48 @@ class QueueScheduleTest extends BaseTestCase
         $worker = $this->app->make(Schedule::class)->events()[2];
 
         $this->assertSame(18, $worker->expiresAt);
+    }
+
+    #[Test]
+    #[DataProvider('processCapabilities')]
+    public function process_detection_checks_disabled_functions_even_when_a_stub_exists(string $disabled, bool $exists, bool $expected): void
+    {
+        $capabilities = new class($disabled, $exists) extends ProcessCapabilities {
+            public function __construct(private string $disabled, private bool $exists) {}
+            protected function disabledFunctions(): string { return $this->disabled; }
+            protected function functionExists(string $function): bool { return $this->exists; }
+        };
+        $this->assertSame($expected, $capabilities->canSpawn());
+        $this->enableSchedule();
+        $this->app->instance(ProcessCapabilities::class, $capabilities);
+        $events = $this->app->make(Schedule::class)->events();
+        $this->assertSame($expected, $events[2]->runInBackground);
+        if (!$expected) {
+            foreach ($events as $event) $this->assertInstanceOf(CallbackEvent::class, $event);
+        }
+    }
+
+    public static function processCapabilities(): array
+    {
+        return [
+            'available' => ['', true, true],
+            'missing' => ['', false, false],
+            'disabled stub' => ['exec, proc_open, shell_exec', true, false],
+            'case and whitespace' => ['exec, PROC_OPEN ,shell_exec', true, false],
+            'different function' => ['proc_close', true, true],
+        ];
+    }
+
+    #[Test]
+    public function background_execution_can_be_disabled_even_when_proc_open_is_available(): void
+    {
+        $this->enableSchedule();
+        config(['interpresso.schedule.worker_background' => false]);
+        $this->mock(ProcessCapabilities::class)->shouldReceive('canSpawn')->once()->andReturn(true);
+        $worker = $this->app->make(Schedule::class)->events()[2];
+        $this->assertInstanceOf(CallbackEvent::class, $worker);
+        $this->assertFalse($worker->runInBackground);
+        $this->assertTrue($worker->withoutOverlapping);
+        $this->assertSame(3, $worker->expiresAt);
     }
 }

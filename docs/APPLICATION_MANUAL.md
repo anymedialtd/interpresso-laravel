@@ -328,21 +328,29 @@ CACHE_STORE=file
 This enables `interpresso.schedule.queue_worker`; its default is `false`. On upgrades, add any missing options to the published configuration instead of overwriting local settings. Run `php artisan migrate` if queue/batch tables are missing, and rebuild cached configuration with `php artisan config:cache`. Add exactly one cron line, replacing the application path and PHP binary as needed:
 
 ```cron
-* * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /path/to/app && /usr/local/bin/php83 artisan schedule:run >> /path/to/app/storage/logs/cron.log 2>&1
 ```
 
-The cron user must be able to run PHP CLI/background processes and write the application's storage and export paths. Confirm the registered schedule and test one drain manually:
+Use the explicit PHP CLI path supplied by your host, such as `/usr/local/bin/php83`. The default `php` in cron is often older than the PHP version serving the website, so a command that works in the browser can fail before Laravel starts. Check `/usr/local/bin/php83 -v` and the cron log before discarding output. The cron user needs write access to application storage and export paths; spawning background processes is optional. Confirm the registered schedule and test one drain with the same binary:
 
 ```bash
-php artisan schedule:list
-php artisan interpresso:work
+/usr/local/bin/php83 artisan schedule:list
+/usr/local/bin/php83 artisan interpresso:work
 ```
 
-`interpresso:work` wraps `queue:work` for `interpresso.queue_name` on the default connection, with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=128`, `--timeout=60`, `--sleep=0` and `--tries=1`. An empty queue exits 0 immediately. Work left after a budget is reached is picked up on the next tick; delayed/reserved jobs remain for later runs.
+`interpresso:work` wraps `queue:work` for `interpresso.queue_name` on the default connection, with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=96`, `--timeout=60`, `--sleep=0` and `--tries=1`. An empty queue exits 0 immediately. Work left after a budget is reached is picked up on the next tick; delayed/reserved jobs remain for later runs.
 
 Configure `interpresso.queue_worker.max_time` (seconds), `interpresso.queue_worker.max_jobs`, `interpresso.queue_worker.memory` (MB), and `interpresso.queue_worker.timeout` (seconds per job). Their environment variables are `INTERPRESSO_QUEUE_WORKER_MAX_TIME`, `INTERPRESSO_QUEUE_WORKER_MAX_JOBS`, `INTERPRESSO_QUEUE_WORKER_MEMORY`, and `INTERPRESSO_QUEUE_WORKER_TIMEOUT`. All must be positive integers; zero/unlimited and malformed values are rejected. Time and memory budgets are checked between jobs. PHP CLI needs PCNTL for Laravel to interrupt a stuck job at its timeout; otherwise a hosting process limit is needed to bound a stuck job. Configure finite network timeouts too. Keep `retry_after` above the job timeout (or set SQS visibility accordingly) and `interpresso.process_lock_ttl` above the longest uninterrupted job and expected queue wait.
 
-The worker runs every minute in the background with `withoutOverlapping`. Its cache lock expires after `ceil((max_time + timeout) / 60) + 1` minutes, three minutes with defaults, allowing the last job to finish. Normal completion releases it earlier. Use a persistent cache such as file storage on one host, or a shared cache across hosts, never an in-memory array/null store. This scheduler cache lock prevents overlapping cron workers. The separate database `ProcessLock` protects translation operations across HTTP, CLI and batches; both are needed. Manual worker invocations are not protected by the scheduler mutex.
+The worker is scheduled every minute with `withoutOverlapping`. `interpresso.schedule.worker_background` defaults to `true` (`INTERPRESSO_SCHEDULE_WORKER_BACKGROUND`). The scheduler checks both `function_exists('proc_open')` and PHP's `disable_functions`. When process spawning is unavailable, or background execution is disabled, it runs `Artisan::call` in a named foreground callback. Simply removing `runInBackground()` would still make Laravel launch a subprocess. Maintenance schedules also use callbacks when `proc_open` is unavailable. Its cache lock expires after `ceil((max_time + timeout) / 60) + 1` minutes, three minutes with defaults, allowing the last job to finish. Normal completion releases it earlier. Use a persistent cache such as file storage on one host, or a shared cache across hosts, never an in-memory array/null store. This scheduler cache lock prevents overlapping cron workers. The separate database `ProcessLock` protects translation operations across HTTP, CLI and batches; both are needed. Manual worker invocations are not protected by the scheduler mutex.
+
+Queued exports (including force/model exports), approvals, missing-translation discovery and imports process at most `interpresso.chunk_size` source rows per job, then enqueue a cursor successor in the same batch. The default is `100`, configurable with `INTERPRESSO_CHUNK_SIZE`; lower it when a host kills short-lived processes. Missing translations with AI also respect `max_open_ai_missing_trans`. Worker restarts resume from the queued cursor; an abruptly killed reservation can replay its current slice after the queue's `retry_after`. Completed slices remain saved. Cursor jobs allow reservation retries, but a real processing exception fails the batch immediately. Batch progress uses an estimated total, with file-import estimates based on source size, and reaches 100% only on completion.
+
+Database sources use ordered primary-key cursors. File imports use entry ordinals and reject source files modified between slices; keep input files stable until the batch finishes. Imports and missing-row creation preserve existing translations on replay. Exports merge keys with atomic file replacement. PHP/JSON inputs and existing export files still need parsing one file at a time, so split exceptionally large files if a single file exceeds the host's memory or process limit. A killed AI request can be billed again if its response was not yet saved.
+
+The worker's `96` MB default leaves headroom on a 128-256 MB host. `INTERPRESSO_QUEUE_WORKER_MEMORY` or `interpresso:work --memory=64` changes the between-job memory bound; PHP's own `memory_limit` still applies within a job. `interpresso:work --max-time=30` overrides the configured time budget for one invocation. Reduce chunk size to shorten individual jobs; `--max-time` is checked between jobs and does not interrupt a running slice.
+
+A host that permits cron only every 5 or 15 minutes still works: change the first cron field to `*/5` or `*/15`. Queued and delayed jobs start proportionally later, and a backlog may need several ticks. Every slice refreshes its database `ProcessLock` before and after work. Keep `INTERPRESSO_PROCESS_LOCK_TTL` above the cron interval plus a worker run and scheduling delay; the `1800` second default provides room for a 15-minute interval. On upgrades with a saved `900` second TTL, raise it for 15-minute cron. Heartbeats cannot run while PHP is stopped. Completion, failure or cancellation releases the batch's own lease.
 
 The same configuration block offers independent opt-ins: `interpresso.schedule.prune_batches` runs `interpresso:prune-batches` every minute; `interpresso.schedule.pending_notifications` runs `interpresso:send-automatic-pending-translations-notification` daily at midnight in the scheduler timezone. Enable them with `INTERPRESSO_SCHEDULE_PRUNE_BATCHES=true` and `INTERPRESSO_SCHEDULE_PENDING_NOTIFICATIONS=true`. Both default to `false`, even when the worker is enabled. Maintenance runs before a newly scheduled worker; existing operation locks can still make a maintenance invocation skip. Automatic reminders also require the saved `enable_automatic_pending_notifications` setting and a working mail transport. That setting is checked when the command runs, so schedule registration needs no settings-table read.
 
@@ -354,7 +362,7 @@ Imports, find-missing, exports, bulk approval, update-and-auto-translate, and ev
 
 The working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
 
-`interpresso.process_lock_ttl` defaults to 900 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
+`interpresso.process_lock_ttl` defaults to 1800 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
 
 Controller mutations acquire the same lease before writing or dispatching. Queued batches retain ownership after the HTTP request returns. Their callbacks release it after completion or failure, and reserved jobs check cancellation and lease ownership before work. Old callbacks cannot clear a replacement owner. Blocked UI messages include the owner and start time. Cancellation, language/account management, and settings changes remain available.
 
@@ -364,7 +372,7 @@ Administrative success notifications are delivered only for successful, uncancel
 
 ### Cancel and maintain batches
 
-Use **Languages > Delete running Batch (Jobs)** to mark unfinished package batches cancelled and delete database `jobs` rows for the package queue. This can also remove queued package notifications. Cancellation does not roll back completed imports/edits/exports or terminate a worker already executing a job. Jobs check batch cancellation before entering their handlers, including jobs a worker has already reserved. There is no general mid-job cancellation check. Inspect the result before starting replacement work.
+Use **Languages > Delete running Batch (Jobs)** to mark unfinished package batches cancelled and delete database `jobs` rows for the package queue. This can also remove queued package notifications. Cancellation does not roll back completed imports/edits/exports or terminate a worker already executing a job. Jobs check batch cancellation before entering their handlers, including jobs a worker has already reserved. Cursor jobs also check cancellation before adding their successor; an already executing slice may finish its writes. Inspect the result before starting replacement work.
 
 With multi-host enabled, the same button requests cancellation on other configured hosts. It does not provide a per-job picker or a retry-failed-jobs screen.
 
@@ -505,10 +513,10 @@ php artisan interpresso:export-translations-deployment
 Signature:
 
 ```text
-interpresso:work
+interpresso:work [--max-time=SECONDS] [--memory=MB]
 ```
 
-Drains only the configured package queue, then exits when empty or when a time/job budget is reached. Remaining work continues on the next cron tick. Returns 0 for an empty queue or a normal budget stop, 1 for non-deferring connections or invalid limits, and otherwise forwards the underlying worker exit code. Worker failures can still be recorded even when the worker exits 0; inspect the failed-job records and logs. There are no command-specific options: configure the limits described in [Cron without Supervisor](#cron-without-supervisor).
+Drains only the configured package queue, then exits when empty or when a time/job budget is reached. Remaining work continues on the next cron tick. Returns 0 for an empty queue or a normal budget stop, 1 for non-deferring connections or invalid limits, and otherwise forwards the underlying worker exit code. Worker failures can still be recorded even when the worker exits 0; inspect the failed-job records and logs. Use `--max-time` and `--memory` to override those limits for one invocation; configure all defaults as described in [Cron without Supervisor](#cron-without-supervisor).
 
 ```bash
 php artisan interpresso:work

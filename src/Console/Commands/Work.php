@@ -8,7 +8,9 @@ use InvalidArgumentException;
 
 class Work extends Command
 {
-    protected $signature = 'interpresso:work';
+    protected $signature = 'interpresso:work
+        {--max-time= : Maximum runtime in seconds, checked between chunks}
+        {--memory= : Worker memory limit in MB, checked between chunks}';
 
     protected $description = 'Drain the Interpresso queue within configured limits, then exit.';
 
@@ -21,7 +23,7 @@ class Work extends Command
         }
 
         try {
-            $limits = QueueConfiguration::workerLimits();
+            $limits = QueueConfiguration::workerLimits($this->option('max-time'), $this->option('memory'));
         } catch (InvalidArgumentException $exception) {
             $this->error($exception->getMessage());
 

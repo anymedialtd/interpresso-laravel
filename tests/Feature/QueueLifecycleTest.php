@@ -134,7 +134,10 @@ class QueueLifecycleTest extends BaseTestCase
     {
         $this->seedBrowserScenario('bulk');
         $this->useDatabaseQueue();
-        $this->mock($service)->shouldReceive($method)->once()->andThrow(new \TypeError('Injected worker failure'));
+        if ($service === ImportTranslationService::class) {
+            File::put(app()->langPath('en/failure.php'), "<?php return ['key' => 'Value'];");
+        }
+        $this->partialMock($service)->shouldReceive($method)->once()->andThrow(new \TypeError('Injected worker failure'));
         $params = str_starts_with($route, 'interpresso.translations.') ? ['language' => Language::where('code', 'en')->firstOrFail()] : [];
         $this->post(route($route, $params))->assertRedirect()->assertSessionHas('batch_id');
         $this->runWorker();
@@ -152,12 +155,12 @@ class QueueLifecycleTest extends BaseTestCase
     {
         return [
             ['interpresso.languages.import-languages', ImportLanguageService::class, 'importLanguages'],
-            ['interpresso.languages.import-translations', ImportTranslationService::class, 'importTranslations'],
+            ['interpresso.languages.import-translations', ImportTranslationService::class, 'importChunk'],
             ['interpresso.languages.find-missing', MissingTranslationService::class, 'findMissingTranslations'],
-            ['interpresso.languages.approve', ApproveLanguagesService::class, 'approveLanguages'],
-            ['interpresso.translations.approve-all', ApproveLanguagesService::class, 'approveLanguages'],
-            ['interpresso.languages.export', ExportTranslationService::class, 'exportTranslationForLanguage'],
-            ['interpresso.translations.export', ExportTranslationService::class, 'exportTranslationForLanguage'],
+            ['interpresso.languages.approve', ApproveLanguagesService::class, 'approveChunk'],
+            ['interpresso.translations.approve-all', ApproveLanguagesService::class, 'approveChunk'],
+            ['interpresso.languages.export', ExportTranslationService::class, 'exportChunk'],
+            ['interpresso.translations.export', ExportTranslationService::class, 'exportChunk'],
         ];
     }
 
@@ -167,7 +170,7 @@ class QueueLifecycleTest extends BaseTestCase
         $this->seedBrowserScenario('bulk');
         $this->useDatabaseQueue();
         $before = Translation::orderBy('id')->get()->toArray();
-        $this->mock(ApproveLanguagesService::class)->shouldReceive('approveLanguages')->once()->andThrow(new \RuntimeException('Worker failed'));
+        $this->mock(ApproveLanguagesService::class)->shouldReceive('approveChunk')->once()->andThrow(new \RuntimeException('Worker failed'));
         $this->post(route('interpresso.languages.approve'))->assertRedirect();
         $id = session('batch_id');
         $this->runWorker();

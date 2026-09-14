@@ -233,6 +233,10 @@ trait CanCreateTranslation
                     $translationsArray[] = $generatedTranslation;
                 }
             }
+            if ($translationsArray === []) return;
+            // Retrying after insertion must not call AI again or replace saved values.
+            // A crash after the external response but before insertion can repeat the
+            // API request (and its cost); that provider call is not transactional.
             try {
                 $encodedTranslations = json_encode($translationsArray);
                 // json_decode previously coerced false to an empty string on encoding failure.
@@ -425,10 +429,28 @@ trait CanCreateTranslation
     {
         $translations = array_filter($translations);
         try {
-            Translation::insert($translations);
-            if ($translations !== []) {
-                Translation::invalidateCacheAfterWrite();
-            }
+            (new Translation())->getConnection()->transaction(function () use ($translations): void {
+                $byLanguage = [];
+                foreach ($translations as $translation) {
+                    $byLanguage[$translation['language_id']][$translation['shared_identifier']] = $translation;
+                }
+                ksort($byLanguage);
+                foreach ($byLanguage as $languageId => $rows) {
+                    // A queue may redeliver a slice after it chained its successor.
+                    // Serialize concurrent insert-only replays on the parent language,
+                    // then check again inside the transaction before inserting.
+                    Language::query()->whereKey($languageId)->lockForUpdate()->firstOrFail();
+                    $existing = Translation::query()->where('language_id', $languageId)
+                        ->whereIn('shared_identifier', array_keys($rows))->pluck('shared_identifier')->all();
+                    foreach ($existing as $identifier) {
+                        if (is_string($identifier)) unset($rows[$identifier]);
+                    }
+                    if ($rows !== []) {
+                        Translation::insert(array_values($rows));
+                        Translation::invalidateCacheAfterWrite();
+                    }
+                }
+            });
         } catch (\Exception $e) {
             $errorId = Str::random();
             $firstTranslation = reset($translations);

@@ -21,6 +21,113 @@ class ImportTranslationService
 {
     use CanCreateTranslation;
 
+    /** @return list<ImportSource> */
+    public function sources(): array
+    {
+        $settings = Setting::getCached();
+        $languages = Language::query()->when($settings->import_only_from_root_language,
+            fn ($query) => $query->where('code', config('app.locale')))->orderBy('id')->get();
+        $roots = [['path' => App::langPath(), 'namespace' => '', 'vendor' => false]];
+        if ($settings->import_vendor) {
+            foreach (Lang::getLoader()->namespaces() as $namespace => $directory) {
+                if (!is_string($directory)) throw new \TypeError('Translation namespace directories must be strings.');
+                // Preserve precedence: published vendor entries are imported first.
+                $roots[] = ['path' => App::langPath('vendor/' . $namespace), 'namespace' => $namespace, 'vendor' => true];
+                $roots[] = ['path' => $directory, 'namespace' => $namespace, 'vendor' => true];
+            }
+        }
+        $sources = [];
+        foreach ($roots as $root) {
+            foreach ($languages as $language) {
+                $json = $root['path'] . '/' . $language->code . '.json';
+                if (File::isFile($json)) {
+                    $sources[] = new ImportSource($language->id, $language->code, 'json', $json, $root['namespace'], '', $root['vendor']);
+                }
+                $directory = $root['path'] . '/' . $language->code;
+                if (!File::isDirectory($directory)) continue;
+                foreach (File::allFiles($directory) as $file) {
+                    $type = $file->getExtension();
+                    if (!in_array($type, ['php', 'json'], true)) continue;
+                    $group = $type === 'php' ? substr($file->getRelativePathname(), 0, -4) : '';
+                    $sources[] = new ImportSource($language->id, $language->code, $type, $file->getPathname(), $root['namespace'], $group, $root['vendor']);
+                }
+            }
+        }
+        $models = config('interpresso.translatable_models');
+        if (!is_array($models)) throw new \TypeError('interpresso.translatable_models must be an array of model class names.');
+        foreach ($models as $class) {
+            if (!is_string($class)) throw new \TypeError('Translatable model class names must be strings.');
+            $model = app($class);
+            if (!$model instanceof Model) throw new \TypeError('Translatable models must be Eloquent models.');
+            $columns = property_exists($model, 'translatable') ? $model->translatable : $model->getAttribute('translatable');
+            if (!$columns) continue;
+            if (!is_array($columns)) throw new \TypeError('Translatable columns must be an array of strings.');
+            foreach ($languages as $language) {
+                foreach ($columns as $column) {
+                    if (!is_string($column)) throw new \TypeError('Translatable column names must be strings.');
+                    $sources[] = new ImportSource($language->id, $language->code, 'model', $class, $class, $column);
+                }
+            }
+        }
+        return $sources;
+    }
+
+    public function importChunk(ImportSource $source, int|string|null $afterId, int $chunkSize): int|string|null
+    {
+        if ($source->type === 'model') {
+            $model = $source->model();
+            $key = $model->getKeyName();
+            $rows = $model->getConnection()->table($model->getTable())->select($key, $source->group)
+                ->when($afterId !== null, fn ($query) => $query->where($key, '>', $afterId))
+                ->orderBy($key)->limit($chunkSize)->get();
+            $content = [];
+            $lastId = null;
+            foreach ($rows as $row) {
+                $lastId = $row->$key;
+                if (!is_int($lastId) && !is_string($lastId)) throw new \TypeError('Translatable model keys must be integers or strings.');
+                $data = $row->{$source->group};
+                if (is_string($data)) $data = json_decode($data, true);
+                if (is_object($data)) $data = (array) $data;
+                if (is_array($data) && isset($data[$source->languageCode])) {
+                    $value = $data[$source->languageCode];
+                    if (!is_scalar($value)) throw new \TypeError('Model translation values must be strings.');
+                    $content[$source->group . '.' . $lastId] = (string) $value;
+                }
+            }
+            // id > afterId reads stable source rows. Insert-only shared identifiers
+            // skip previously imported values on replay, including administrator edits.
+            $this->massCreateTranslations($content, 'model', $source->languageId, $source->languageCode, '', $source->path, false);
+            return $rows->count() === $chunkSize ? $lastId : null;
+        }
+
+        try {
+            $fingerprint = hash_file('sha256', $source->path);
+            if ($fingerprint === false) throw new \RuntimeException('Cannot read import source.');
+            if ($source->fingerprint !== null && $source->fingerprint !== $fingerprint) {
+                throw new \RuntimeException('Import source changed between chunks; start a new import.');
+            }
+            $source->fingerprint = $fingerprint;
+            $content = $source->type === 'php' ? File::getRequire($source->path) : json_decode(File::get($source->path), true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($content)) throw new \TypeError('Translation file content must be an array.');
+            $content = resolve(LanguageHelper::class)->array_convert_keys_to_dot_notation($content);
+            if (hash_file('sha256', $source->path) !== $fingerprint) throw new \RuntimeException('Import source changed while reading.');
+            // Files have no database IDs. Their immutable flattened entry ordinals
+            // are the cursor IDs; fingerprint checking prevents reordered input from
+            // skipping entries. PHP/JSON still require parsing one source file at a time.
+            $offset = is_int($afterId) ? $afterId : 0;
+            $slice = array_slice($content, $offset, $chunkSize, true);
+            foreach ($slice as $key => $value) {
+                if (!is_scalar($value)) throw new \TypeError('Translation values must be strings.');
+                $slice[$key] = (string) $value;
+            }
+            // Import is insert-only, so replay cannot duplicate keys or reset edits.
+            $this->massCreateTranslations($slice, $source->type, $source->languageId, $source->languageCode, $source->namespace, $source->group, $source->isVendor);
+            return count($slice) === $chunkSize ? $offset + count($slice) : null;
+        } catch (\Throwable $e) {
+            throw new ImportTranslationsException($e->getMessage(), __('interpresso::exceptions.invalid_file_error', ['relativePathname' => $source->path]), 0);
+        }
+    }
+
     protected null|Batch $batch = null;
     protected ?ProcessLock $processLock = null;
 

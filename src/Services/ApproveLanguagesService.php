@@ -7,6 +7,23 @@ use AnyMedia\Interpresso\Models\Translation;
 
 class ApproveLanguagesService
 {
+    public function approveChunk(Language $language, int $authUserId, int $afterId, int $chunkSize): ?int
+    {
+        // Stable id > afterId boundaries survive a crash after UPDATE. Only pending
+        // approvals are changed, so replay cannot overwrite existing attribution.
+        $rows = $language->translations()->where('id', '>', $afterId)->orderBy('id')->limit($chunkSize)->get();
+        $pending = $rows->where('approved', false);
+        if ($pending->isNotEmpty()) {
+            Translation::query()->whereIn('id', $pending->modelKeys())->where('approved', false)
+                ->update($this->approvedTranslationUpdateArray($authUserId));
+            foreach ($pending as $translation) {
+                $this->resetTranslationCache($translation);
+            }
+            Translation::invalidateCacheAfterWrite();
+        }
+        return $rows->count() === $chunkSize ? $rows->last()?->id : null;
+    }
+
     public function approveLanguages(Language $language, int $authUserId): void {
 
         $language->translations()->where('approved', false)

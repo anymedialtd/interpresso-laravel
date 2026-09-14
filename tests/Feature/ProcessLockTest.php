@@ -360,7 +360,7 @@ class ProcessLockTest extends BaseTestCase
     #[Test]
     public function cli_sync_batch_failure_releases_the_lease(): void
     {
-        $this->mock(ExportTranslationService::class)->shouldReceive('forceExportTranslationForLanguage')->once()
+        $this->mock(ExportTranslationService::class)->shouldReceive('exportChunk')->once()
             ->andThrow(new \TypeError('CLI export failed'));
         try {
             resolve(BatchProcessor::class)->dispatch([new ForceExportTranslationJob(Language::firstOrFail())]);
