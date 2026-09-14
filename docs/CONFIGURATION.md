@@ -9,6 +9,7 @@ Main config file:
 ### Core
 
 - `INTERPRESSO_ENABLED` (default: `true`)
+- `INTERPRESSO_LOCALE` (default: `null`, follows the host locale when available)
 - `INTERPRESSO_SECURITY_HEADERS_ENABLED` (default: `true`)
 - `INTERPRESSO_MAIN_SERVER_DOMAIN` (default: `config('app.url')`)
 - `INTERPRESSO_DB_CONNECTION` (default: `config('database.default')`)
@@ -48,6 +49,35 @@ In `config/openai.php`:
 - `OPENAI_REQUEST_TIMEOUT` (default: `30`)
 
 ## Important Config Keys
+
+### Interface language
+
+`interpresso.locale`, configured through `INTERPRESSO_LOCALE`, supplies an optional
+default for the translation interface. Each package route resolves the first supported
+locale from the authenticated translator's `locale`, the `interpresso-locale` cookie,
+`interpresso.locale`, then `app.locale`. Unsupported values are ignored. If none is
+available, English is used, or the first discovered locale if English was removed.
+The request changes only the translation service's locale and restores it afterwards;
+the host's `app.locale` continues to govern import sources and bulk translation actions.
+
+The available list is discovered from PHP translation directories inside the package's
+`lang/`, including `en`, `de`, `fr`, `es` and `it`. Discovery is cached for the application
+lifetime, without a persistent cache entry. A new translation directory appears on the
+next application boot; restart long-running application workers after deployment.
+Set `global.locale_name` in each new catalogue to its native name. If it is missing,
+the selector displays the locale code. Empty directories and JSON-only files are excluded.
+
+The navbar's CSRF-protected POST form works on the login page and every authenticated
+screen without JavaScript. It writes the authenticated translator's preference and a
+one-year encrypted, HttpOnly, SameSite=Lax cookie, Secure on HTTPS. Anonymous changes
+write only the cookie. Like the theme cookie, its path follows the package URL prefix,
+normally `/translator`. Administrators can also set the locale in the translator
+create/edit form; selecting **Browser / default** stores `null` and resumes the fallback
+chain. Submitted unknown locales are rejected without changing the saved preference.
+
+Run `php artisan migrate` on upgrade to add the nullable `locale` column to the configured
+translator table on `interpresso.db_connection`. Existing accounts are not backfilled.
+Refresh any published layout or translator-form overrides to expose the new controls.
 
 ### Routes
 

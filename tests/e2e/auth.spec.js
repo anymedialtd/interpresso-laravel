@@ -21,7 +21,7 @@ test.describe('authentication', () => {
         await page.goto('/translator/login');
         await page.fill('input#email', ADMIN.email);
         await page.fill('input#password', 'definitely-not-the-password');
-        await page.click('button[type="submit"]');
+        await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
         await expect(page.locator('body')).toContainText(/invalid/i);
         await expect(page).toHaveURL(/\/translator\/login/);

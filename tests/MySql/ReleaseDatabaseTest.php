@@ -70,7 +70,7 @@ class ReleaseDatabaseTest extends TestCase
         if (Schema::hasIndex($table, 'interpresso_translations_language_id_foreign')) {
             Schema::table($table, fn ($blueprint) => $blueprint->dropIndex('interpresso_translations_language_id_foreign'));
         }
-        $this->artisan('migrate:rollback', ['--step' => 4, '--force' => true])->assertExitCode(0);
+        $this->artisan('migrate:rollback', ['--step' => 5, '--force' => true])->assertExitCode(0);
         $this->assertFalse(Schema::hasIndex($table, 'ltr_lang_approved_idx'));
         $this->assertTrue(Schema::hasIndex($table, 'interpresso_translations_language_id_foreign'));
         $this->assertNotEmpty(Schema::getForeignKeys($table));
@@ -84,6 +84,24 @@ class ReleaseDatabaseTest extends TestCase
         $this->assertNotEmpty($indexes);
         foreach ($indexes as $index) $this->assertLessThanOrEqual(60, strlen($index->name), $index->name);
         $this->assertTrue(Schema::hasIndex($table, 'ltr_lang_approved_idx'));
+    }
+
+    #[Test]
+    public function translator_locale_migration_can_rollback_and_reapply_without_backfilling_existing_rows(): void
+    {
+        $migration = require dirname(__DIR__, 2) . '/database/migrations/2026_09_14_000001_add_locale_to_translators_table.php';
+        $table = config('interpresso.table_translators');
+        $this->assertNull(DB::table($table)->value('locale'));
+        DB::table($table)->update(['locale' => 'de']);
+        $migration->up();
+        $this->assertSame('de', DB::table($table)->value('locale'));
+        $migration->down();
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn($table, 'locale'));
+        $migration->up();
+        $migration->up();
+        $this->assertNull(DB::table($table)->value('locale'));
+        $this->assertSame('admin@admin.com', DB::table($table)->value('email'));
     }
 
     private function remoteData(): array

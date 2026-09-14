@@ -15,6 +15,7 @@ use AnyMedia\Interpresso\Notifications\FlashMessage;
  * @property string $last_name
  * @property string $email
  * @property string|null $phone
+ * @property string|null $locale
  * @property bool $admin
  * @property string|null $password
  * @property Collection<int, Language> $languages
@@ -41,7 +42,8 @@ class Translator extends Authenticatable
         'admin',
         'email',
         'password',
-        'phone'
+        'phone',
+        'locale'
     ];
 
     /**

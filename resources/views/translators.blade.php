@@ -8,6 +8,16 @@
             @foreach(['email' => 'email', 'phone' => 'tel', 'first_name' => 'text', 'last_name' => 'text'] as $field => $inputType)
                 @include('interpresso::component.input', ['name' => $field, 'label' => __('interpresso::translators.form.label.' . $field), 'type' => $inputType, 'required' => $field !== 'phone', 'value' => $translator?->{$field}])
             @endforeach
+            <div id="locale" class="w-full mb-6">
+                <label for="field-locale" class="label mb-2 text-sm font-medium text-base-content">{{ __('interpresso::global.interface_language') }}</label>
+                <select id="field-locale" name="locale" class="select select-bordered w-full">
+                    <option value="" @selected(old('locale', $translator?->locale) === null || old('locale', $translator?->locale) === '')>{{ __('interpresso::global.default_locale') }}</option>
+                    @foreach($interfaceLocales as $locale => $nativeName)
+                        <option value="{{ $locale }}" lang="{{ str_replace('_', '-', $locale) }}" @selected(old('locale', $translator?->locale) === $locale)>{{ $nativeName }}</option>
+                    @endforeach
+                </select>
+                @include('interpresso::component.error', ['field' => 'locale'])
+            </div>
             @if(!$translator)
                 @foreach(['password', 'password_confirmation'] as $field)
                     @include('interpresso::component.input', ['name' => $field, 'label' => __('interpresso::translators.form.label.' . $field), 'type' => 'password', 'required' => true])

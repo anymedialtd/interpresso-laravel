@@ -4,7 +4,7 @@ Esta es una traducción del original en inglés, que sigue siendo la referencia 
 
 Este manual se muestra en el panel de traducción en la ruta `interpresso.manual`, normalmente `/translator/manual`. Use el índice de secciones generado para navegar. En pantallas anchas, el índice permanece junto al artículo y se desplaza dentro de la ventana para mantener accesibles todas las secciones. Las cuatro pantallas de trabajo son Idiomas, Traducciones, Traductores y Configuración.
 
-La interfaz utiliza `app.locale` de la aplicación anfitriona. Incluye alemán (`de`), francés (`fr`), español (`es`) e italiano (`it`). El manual carga `docs/APPLICATION_MANUAL.{locale}.md` para el idioma activo y recurre a `docs/APPLICATION_MANUAL.md` si no hay traducción. El original en inglés sigue siendo la referencia oficial. Los encabezados traducidos conservan las anclas de las secciones del original.
+Cada traductor puede elegir el idioma de la interfaz con independencia de `app.locale` de la aplicación anfitriona. Incluye inglés (`en`), alemán (`de`), francés (`fr`), español (`es`) e italiano (`it`). El manual carga `docs/APPLICATION_MANUAL.{locale}.md` para el idioma activo y recurre a `docs/APPLICATION_MANUAL.md` si no hay traducción. El original en inglés sigue siendo la referencia oficial. Los encabezados traducidos conservan las anclas de las secciones del original.
 
 ## Primeros pasos {#getting-started}
 
@@ -411,6 +411,18 @@ Una preferencia existente en `localStorage["color-theme"]` se migra a la cookie 
 La cookie usa como ruta el prefijo URL del paquete, normalmente `/translator`. Guardar elimina un duplicado en la ruta con barra final (`/translator/`) para que una cookie antigua más específica no sobrescriba la nueva elección en la siguiente petición.
 
 El paquete activa cabeceras estrictas de seguridad del navegador por defecto. Scripts y estilos se cargan de archivos externos, los datos de avisos se guardan en un atributo HTML escapado y la interfaz no puede incrustarse en un marco. Los despliegues CDN deben configurar orígenes de recursos permitidos en `interpresso.security_headers.extra_sources`; vea [Configuración](CONFIGURATION.md#browser-security-headers). Estas cabeceras solo se aplican a rutas web del paquete.
+
+### Idioma de la interfaz {#interface-language}
+
+En cualquier página, incluida la de acceso, elija English, Deutsch, Français, Español o Italiano en la navegación y pulse **Cambiar idioma**. La siguiente respuesta muestra inmediatamente el idioma elegido y el manual correspondiente. Este formulario funciona sin JavaScript.
+
+Los cambios con sesión iniciada se guardan en el campo nullable `locale` del traductor y en la cookie `interpresso-locale`. Sin sesión, solo se guarda la cookie. Dura un año y usa el prefijo URL del paquete, normalmente `/translator`; está cifrada y usa HttpOnly, SameSite=Lax y Secure en HTTPS. La preferencia de la cuenta persiste tras cerrar e iniciar sesión, incluso desde otro navegador.
+
+Se usa el primer valor disponible: preferencia del traductor, cookie, `interpresso.locale` y después `app.locale`. Los valores inválidos se ignoran; si ninguno es compatible, se usa inglés, o el primer idioma disponible si se ha eliminado el inglés. Enviar un idioma desconocido se rechaza sin guardar. Las opciones proceden de los directorios `lang/` del paquete y se almacenan en caché durante la vida de la aplicación. Reinicie los procesos persistentes de la aplicación tras añadir traducciones. Defina `global.locale_name` en un catálogo nuevo para mostrar su nombre nativo; en caso contrario se muestra su código.
+
+Los administradores pueden establecer o borrar el **Idioma de la interfaz** en el formulario de creación o edición del traductor. **Navegador / predeterminado** borra la preferencia de la cuenta y vuelve a la cookie y la configuración. La elección conserva las asignaciones de idiomas, el idioma fuente de importación y los ajustes de la aplicación anfitriona.
+
+Las actualizaciones añaden una columna nullable `locale` sin rellenar las cuentas existentes. Ejecute las migraciones del paquete y actualice las vistas publicadas si su aplicación las sobrescribe.
 
 ## Referencia CLI {#cli-reference}
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-ui-messages="{{ json_encode(__('interpresso::global.browser')) }}" @if($colorTheme) data-theme="{{ $colorTheme }}" @endif @class(['dark' => $colorTheme === 'dark']) data-theme-cookie-path="{{ $themeCookiePath }}">
+<html lang="{{ str_replace('_', '-', app('translator')->getLocale()) }}" data-ui-messages="{{ json_encode(__('interpresso::global.browser')) }}" @if($colorTheme) data-theme="{{ $colorTheme }}" @endif @class(['dark' => $colorTheme === 'dark']) data-theme-cookie-path="{{ $themeCookiePath }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,6 +16,17 @@
         <a href="{{ route('interpresso.languages') }}" class="btn btn-ghost text-xl">{{ __('interpresso::navbar.brand') }}</a>
         <span class="badge badge-ghost">v {{ \AnyMedia\Interpresso\InterpressoServiceProvider::$version }}</span>
         <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm" aria-label="{{ __('interpresso::navbar.toggle_theme') }}">{{ __('interpresso::navbar.theme') }}</button>
+        <form id="interface-locale-form" method="POST" action="{{ route('interpresso.locale.update') }}" class="flex flex-wrap items-center gap-2">
+            @csrf
+            <label for="interface-locale" class="sr-only">{{ __('interpresso::global.interface_language') }}</label>
+            <select id="interface-locale" name="locale" class="select select-bordered select-sm w-auto">
+                @foreach($interfaceLocales as $locale => $nativeName)
+                    <option value="{{ $locale }}" lang="{{ str_replace('_', '-', $locale) }}" @selected(app('translator')->getLocale() === $locale)>{{ $nativeName }}</option>
+                @endforeach
+            </select>
+            <button type="submit" class="btn btn-ghost btn-sm">{{ __('interpresso::navbar.change_language') }}</button>
+            @include('interpresso::component.error', ['field' => 'locale', 'errorBag' => 'interfaceLocale'])
+        </form>
         @if(auth(config('interpresso.translator_guard'))->check())
             <button type="button" data-toggle="mobile-menu" aria-controls="mobile-menu" aria-expanded="false" class="btn btn-ghost md:hidden">{{ __('interpresso::navbar.open_menu') }}</button>
             <div id="mobile-menu" class="hidden md:flex w-full md:w-auto">

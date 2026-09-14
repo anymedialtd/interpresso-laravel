@@ -25,11 +25,13 @@ use AnyMedia\Interpresso\Middleware\AuthApi;
 use AnyMedia\Interpresso\Middleware\AuthTranslator;
 use AnyMedia\Interpresso\Middleware\EncryptCookies;
 use AnyMedia\Interpresso\Middleware\SecurityHeaders;
+use AnyMedia\Interpresso\Middleware\SetInterfaceLocale;
 use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\OpenAITranslationService;
 use AnyMedia\Interpresso\Services\QueueConfiguration;
 use AnyMedia\Interpresso\Services\ProcessCapabilities;
+use AnyMedia\Interpresso\Services\InterfaceLocales;
 
 
 class InterpressoServiceProvider extends ServiceProvider
@@ -118,6 +120,9 @@ class InterpressoServiceProvider extends ServiceProvider
         $this->app->singleton(OpenAITranslationService::class, function () {
             return new OpenAITranslationService();
         });
+        // Cache filesystem discovery for this application lifetime, without a
+        // persistent cache entry that would hide newly deployed translations.
+        $this->app->singleton(InterfaceLocales::class);
     }
 
     /**
@@ -162,10 +167,12 @@ class InterpressoServiceProvider extends ServiceProvider
         app('router')->aliasMiddleware('interpresso.translator', \AnyMedia\Interpresso\Middleware\EnsureTranslator::class);
         app('router')->aliasMiddleware('interpresso.admin', \AnyMedia\Interpresso\Middleware\EnsureAdmin::class);
         app('router')->aliasMiddleware('interpresso.security-headers', SecurityHeaders::class);
+        app('router')->aliasMiddleware('interpresso.locale', SetInterfaceLocale::class);
         app('router')->aliasMiddleware('interpresso-auth-api', AuthApi::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, EncryptCookies::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, \Illuminate\Session\Middleware\StartSession::class);
+        app('router')->pushMiddlewareToGroup($translatorGuard, SetInterfaceLocale::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, \Illuminate\View\Middleware\ShareErrorsFromSession::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
         app('router')->pushMiddlewareToGroup($translatorGuard, \Illuminate\Routing\Middleware\SubstituteBindings::class);
@@ -207,6 +214,7 @@ class InterpressoServiceProvider extends ServiceProvider
             $prefix = config('interpresso.prefix');
             $view->with('colorTheme', in_array($theme, ['light', 'dark'], true) ? $theme : null);
             $view->with('themeCookiePath', parse_url(url($prefix), PHP_URL_PATH) ?: '/');
+            $view->with('interfaceLocales', resolve(InterfaceLocales::class)->options());
         });
         $this->publishes([
             __DIR__ . '/../resources/views' => resource_path('views/vendor/interpresso')], 'interpresso-views',

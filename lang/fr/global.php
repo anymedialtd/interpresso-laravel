@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'locale_name' => 'Français',
+    'interface_language' => "Langue de l'interface",
+    'default_locale' => 'Navigateur / par défaut',
+    'invalid_locale' => "Veuillez sélectionner une langue disponible pour l'interface.",
     'unauthenticated' => 'Vous n\'êtes pas connecté !',
     'process_description' => ':owner (début :started)',
     'unknown_owner' => 'propriétaire inconnu',

@@ -12,8 +12,8 @@ test.describe('languages', () => {
         });
         await expect(french).toHaveCount(0);
         await page.getByRole('button', { name: 'Add Language', exact: true }).click();
-        await expect(page.getByRole('combobox')).toBeVisible();
-        await page.getByRole('combobox').selectOption({ label: 'French' });
+        await expect(page.getByRole('combobox', { name: 'Language', exact: true })).toBeVisible();
+        await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption({ label: 'French' });
         await page.getByRole('button', { name: 'Add', exact: true }).click();
 
         await expect(french).toBeVisible();
@@ -41,7 +41,7 @@ test.describe('languages', () => {
     });
 
     test('the add-language form opens and closes without creating a language', async ({ page }) => {
-        const select = page.getByRole('combobox');
+        const select = page.getByRole('combobox', { name: 'Language', exact: true });
         await expect(select).toHaveCount(0);
         await page.getByRole('button', { name: 'Add Language', exact: true }).click();
         await expect(select).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('languages', () => {
 test('add-language validation rejects an empty selection and excludes existing codes', async ({ page }) => {
     await login(page);
     await page.getByRole('button', { name: 'Add Language', exact: true }).click();
-    const select = page.getByRole('combobox');
+    const select = page.getByRole('combobox', { name: 'Language', exact: true });
     await expect(select.locator('option[value="en"], option[value="de"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     expect(await select.evaluate(control => control.validity.valueMissing)).toBe(true);

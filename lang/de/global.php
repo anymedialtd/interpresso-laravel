@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'locale_name' => 'Deutsch',
+    'interface_language' => 'Oberflächensprache',
+    'default_locale' => 'Browser / Standard',
+    'invalid_locale' => 'Bitte wählen Sie eine verfügbare Oberflächensprache.',
     'unauthenticated' => 'Sie sind nicht angemeldet!',
     'process_description' => ':owner (gestartet :started)',
     'unknown_owner' => 'unbekannter Eigentümer',

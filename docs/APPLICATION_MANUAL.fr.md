@@ -4,7 +4,7 @@ Ceci est une traduction de l'original anglais, qui reste la référence faisant 
 
 Ce manuel s'affiche dans l'interface de traduction à la route `interpresso.manual`, généralement `/translator/manual`. Utilisez le sommaire généré pour naviguer. Sur les écrans larges, il reste à côté de l'article et défile dans la fenêtre pour que toutes les sections restent accessibles. Les quatre espaces de travail sont Langues, Traductions, Traducteurs et Paramètres.
 
-L'interface suit `app.locale` de l'application hôte. L'allemand (`de`), le français (`fr`), l'espagnol (`es`) et l'italien (`it`) sont inclus. Le manuel charge `docs/APPLICATION_MANUAL.{locale}.md` pour la langue active et utilise `docs/APPLICATION_MANUAL.md` si aucune traduction n'existe. L'original anglais reste la référence. Les titres traduits conservent les ancres des sections de l'original.
+Chaque traducteur peut choisir la langue de l'interface indépendamment de `app.locale` de l'application hôte. L'anglais (`en`), l'allemand (`de`), le français (`fr`), l'espagnol (`es`) et l'italien (`it`) sont inclus. Le manuel charge `docs/APPLICATION_MANUAL.{locale}.md` pour la langue active et utilise `docs/APPLICATION_MANUAL.md` si aucune traduction n'existe. L'original anglais reste la référence. Les titres traduits conservent les ancres des sections de l'original.
 
 ## Premiers pas {#getting-started}
 
@@ -411,6 +411,18 @@ Une préférence existante `localStorage["color-theme"]` migre vers le cookie `i
 Le chemin du cookie est le préfixe URL du package, généralement `/translator`. L'enregistrement retire un doublon au chemin avec barre finale (`/translator/`) pour empêcher qu'un ancien cookie plus spécifique n'écrase le nouveau choix à la requête suivante.
 
 Le package active des en-têtes de sécurité navigateur stricts par défaut. Scripts et styles proviennent de fichiers externes, les données des messages sont stockées dans un attribut HTML échappé, et l'interface ne peut pas être intégrée dans un cadre. Les déploiements CDN doivent configurer les origines autorisées dans `interpresso.security_headers.extra_sources` ; voir [Configuration](CONFIGURATION.md#browser-security-headers). Ces en-têtes concernent uniquement les routes web du package.
+
+### Langue de l'interface {#interface-language}
+
+Sur chaque page, y compris la connexion, choisissez English, Deutsch, Français, Español ou Italiano dans la navigation et cliquez sur **Changer de langue**. La réponse suivante affiche immédiatement la langue choisie et le manuel correspondant. Ce formulaire fonctionne sans JavaScript.
+
+Les changements après connexion sont enregistrés dans le champ nullable `locale` du traducteur et le cookie `interpresso-locale`. Sans connexion, seul le cookie est enregistré. Il dure un an et suit le préfixe URL du package, généralement `/translator` ; il est chiffré, HttpOnly, SameSite=Lax et Secure sous HTTPS. La préférence du compte persiste après déconnexion et nouvelle connexion, y compris dans un autre navigateur.
+
+Le premier choix disponible est utilisé : préférence du traducteur, cookie, `interpresso.locale`, puis `app.locale`. Les valeurs invalides sont ignorées ; si aucune ne convient, l'anglais est utilisé, ou la première langue disponible si l'anglais a été supprimé. Soumettre une langue inconnue est refusé sans enregistrement. Les choix proviennent des répertoires `lang/` du package, mis en cache pendant la durée de vie de l'application. Redémarrez les processus applicatifs persistants après avoir ajouté des traductions. Définissez `global.locale_name` dans un nouveau catalogue pour son nom natif ; sinon son code est affiché.
+
+Les administrateurs peuvent définir ou effacer la **Langue de l'interface** dans le formulaire de création ou de modification du traducteur. **Navigateur / par défaut** efface la préférence du compte et rétablit le repli sur le cookie et la configuration. Les affectations linguistiques, la langue source des imports et les paramètres de l'application hôte restent inchangés.
+
+Les mises à niveau ajoutent une colonne nullable `locale` sans remplir les comptes existants. Exécutez les migrations du package et actualisez les vues publiées si votre application les remplace.
 
 ## Référence CLI {#cli-reference}
 

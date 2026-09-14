@@ -12,8 +12,10 @@
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Agent Guide](../AGENTS.md)
 
-The interface follows the host application's `app.locale` and includes English,
-German, French, Spanish and Italian. The in-app manual uses the matching
+Each translator can choose the interface language from the navbar, including on
+the login page. English, German, French, Spanish and Italian are included, with
+preferences resolved as described in [Configuration](CONFIGURATION.md#interface-language).
+The in-app manual uses the matching
 `APPLICATION_MANUAL.{locale}.md`, falling back to the English original when absent.
 The English original remains authoritative. Translations:
 [Deutsch](APPLICATION_MANUAL.de.md), [Français](APPLICATION_MANUAL.fr.md),

@@ -17,7 +17,7 @@ class ManualController extends BaseController
     private function loadManual(): void
     {
         $path = dirname(__DIR__, 2) . '/docs/APPLICATION_MANUAL.md';
-        $locale = app()->getLocale();
+        $locale = app('translator')->getLocale();
         // A locale must remain a filename component, never a relative path.
         if (preg_match('/\A[a-zA-Z0-9_-]+\z/', $locale) === 1) {
             $localizedPath = dirname(__DIR__, 2) . '/docs/APPLICATION_MANUAL.' . $locale . '.md';

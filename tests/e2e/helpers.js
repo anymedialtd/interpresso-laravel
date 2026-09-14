@@ -150,7 +150,7 @@ export async function login(page, credentials = ADMIN) {
     await page.goto('/translator/login');
     await page.fill('input#email', credentials.email);
     await page.fill('input#password', credentials.password);
-    await page.click('button[type="submit"]');
+    await page.locator('form').filter({ has: page.locator('input#email') }).getByRole('button').click();
     await page.waitForURL(/\/translator\/(languages|translators)/, { timeout: 15_000 });
 }
 

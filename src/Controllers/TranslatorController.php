@@ -13,6 +13,7 @@ use AnyMedia\Interpresso\Requests\StoreTranslatorRequest;
 use AnyMedia\Interpresso\Requests\UpdateTranslatorPasswordRequest;
 use AnyMedia\Interpresso\Requests\UpdateTranslatorRequest;
 use AnyMedia\Interpresso\Services\Toast;
+use AnyMedia\Interpresso\Services\InterfaceLocales;
 
 class TranslatorController extends BaseController
 {
@@ -36,6 +37,7 @@ class TranslatorController extends BaseController
         return view('interpresso::translators', [
             'data' => $query->orderBy('id')->paginate(10)->withQueryString(),
             'availableLanguages' => Language::query()->orderBy('id')->get(),
+            'interfaceLocales' => resolve(InterfaceLocales::class)->options(),
             'translator' => $translator,
             'showForm' => $translator !== null || $request->boolean('create'),
             'showUpdatePasswordForm' => $translator !== null && $request->boolean('password'),

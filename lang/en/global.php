@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'locale_name' => 'English',
+    'interface_language' => 'Interface language',
+    'default_locale' => 'Browser / default',
+    'invalid_locale' => 'Please select an available interface language.',
     'unauthenticated' => 'User is not authenticated!',
     'process_description' => ':owner (started :started)',
     'unknown_owner' => 'unknown owner',

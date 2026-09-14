@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'locale_name' => 'Español',
+    'interface_language' => 'Idioma de la interfaz',
+    'default_locale' => 'Navegador / predeterminado',
+    'invalid_locale' => 'Seleccione un idioma disponible para la interfaz.',
     'unauthenticated' => '¡No ha iniciado sesión!',
     'process_description' => ':owner (inicio :started)',
     'unknown_owner' => 'propietario desconocido',

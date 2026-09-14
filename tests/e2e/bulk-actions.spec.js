@@ -13,7 +13,7 @@ test('deleting a language removes it and its translation rows after reload', asy
     await expect(tableRow(page, 'English')).toHaveCount(0);
     await expect(tableRow(page, 'German')).toBeVisible();
     await page.getByRole('button', { name: 'Add Language', exact: true }).click();
-    await page.getByRole('combobox').selectOption({ label: 'English' });
+    await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption({ label: 'English' });
     await submit(page, page.getByRole('button', { name: 'Add', exact: true }));
     await openTranslations(page);
     await expect(page.locator('tbody tr')).toHaveCount(0);

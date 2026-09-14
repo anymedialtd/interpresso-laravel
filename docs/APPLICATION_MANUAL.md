@@ -2,7 +2,7 @@
 
 This is the manual displayed inside the translation panel at the `interpresso.manual` route, normally `/translator/manual`. Use the generated section index to navigate. On wide screens, the index stays beside the article and scrolls within the viewport so every section remains reachable. The four working screens are Languages, Translations, Translators, and Settings.
 
-The interface follows the host application's `app.locale`. German (`de`), French (`fr`), Spanish (`es`), and Italian (`it`) are included. The manual loads `docs/APPLICATION_MANUAL.{locale}.md` for the active locale and falls back to `docs/APPLICATION_MANUAL.md` when no translation exists. The English original remains authoritative. Translated headings retain the original section anchors.
+The interface language can be chosen per translator, independently of the host application's `app.locale`. English (`en`), German (`de`), French (`fr`), Spanish (`es`), and Italian (`it`) are included. The manual loads `docs/APPLICATION_MANUAL.{locale}.md` for the active locale and falls back to `docs/APPLICATION_MANUAL.md` when no translation exists. The English original remains authoritative. Translated headings retain the original section anchors.
 
 ## Getting Started
 
@@ -409,6 +409,18 @@ An existing `localStorage["color-theme"]` preference migrates into the `interpre
 The preference uses the package's URL prefix as its cookie path, normally `/translator`. Saving it removes a duplicate at the trailing-slash path (`/translator/`) so an older, more specific cookie cannot override the new choice on the next request.
 
 The package enables strict browser security headers by default. Its scripts and styles load from external files, toast data is stored in an escaped HTML attribute, and the UI cannot be embedded in a frame. CDN deployments must configure allowed asset origins in `interpresso.security_headers.extra_sources`; see [Configuration](CONFIGURATION.md#browser-security-headers). These headers apply only to package web routes.
+
+### Interface language
+
+On any page, including login, choose English, Deutsch, Français, Español, or Italiano in the navbar and press **Change language**. The next page response renders the chosen language immediately and also selects the manual. This form works without JavaScript.
+
+Signed-in changes are saved to the translator's nullable `locale` field and the `interpresso-locale` cookie. Anonymous changes use only the cookie. It lasts one year and follows the package URL prefix, normally `/translator`; it is encrypted, HttpOnly, SameSite=Lax and Secure on HTTPS. The account preference survives logout and a new login, including in another browser.
+
+Resolution uses the first available value: translator preference, cookie, `interpresso.locale`, then `app.locale`. Invalid values are ignored; if none is supported, English is used, or the first available locale if English was removed. Submitting an unknown language is rejected without saving. Choices come from the package's `lang/` directories, cached for the application lifetime. Restart long-running application workers after adding translations. Set `global.locale_name` in a new catalogue for its native label; otherwise its code is shown.
+
+Admins can set or clear **Interface language** in the translator create/edit profile form. **Browser / default** clears the account preference and resumes the cookie/configuration fallback. The choice leaves translation assignments, import source language and host application settings unchanged.
+
+Upgrades add a nullable `locale` column without backfilling existing accounts. Run the package migrations and refresh published views if your application overrides them.
 
 ## CLI Reference
 

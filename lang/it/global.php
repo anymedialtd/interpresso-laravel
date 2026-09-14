@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'locale_name' => 'Italiano',
+    'interface_language' => "Lingua dell'interfaccia",
+    'default_locale' => 'Browser / predefinita',
+    'invalid_locale' => "Seleziona una lingua disponibile per l'interfaccia.",
     'unauthenticated' => 'Non hai effettuato l\'accesso!',
     'process_description' => ':owner (inizio :started)',
     'unknown_owner' => 'proprietario sconosciuto',

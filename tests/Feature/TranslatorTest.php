@@ -126,6 +126,42 @@ class TranslatorTest extends BaseTestCase
     }
 
     #[Test]
+    public function admins_can_create_set_and_clear_interface_locales_without_changing_other_profile_fields(): void
+    {
+        $this->actingAs($this->admin)->post(route('interpresso.translators.store'), $this->profile(['locale' => 'it']))->assertSessionHasNoErrors();
+        $translator = Translator::where('email', 'john@example.test')->firstOrFail();
+        $this->assertSame('it', $translator->locale);
+        $form = route('interpresso.translators.edit', $translator);
+        $this->get($form)->assertOk()->assertSee('id="field-locale"', false)->assertSee('Italiano');
+        $this->post(route('interpresso.translators.update', $translator), $this->profile(['locale' => 'fr']))->assertSessionHasNoErrors();
+        $this->assertSame('fr', $translator->fresh()->locale);
+
+        $before = $translator->fresh()->getAttributes();
+        $this->from($form)->post(route('interpresso.translators.update', $translator), $this->profile(['locale' => '../de']))
+            ->assertRedirect($form)->assertSessionHasErrors('locale');
+        $this->assertSame($before, $translator->fresh()->getAttributes());
+        $response = $this->get($form)->assertOk()->assertSee('Please select an available interface language.')->assertDontSee('interpresso::');
+        $this->assertSame(1, substr_count($response->getContent(), 'Please select an available interface language.'));
+
+        // Older clients that omit the optional field must preserve the saved value.
+        $this->post(route('interpresso.translators.update', $translator), $this->profile())->assertSessionHasNoErrors();
+        $this->assertSame('fr', $translator->fresh()->locale);
+        $this->post(route('interpresso.translators.update', $translator), $this->profile(['locale' => '']))->assertSessionHasNoErrors();
+        $this->assertNull($translator->fresh()->locale);
+        $this->assertSame($before['password'], $translator->fresh()->password);
+        $this->assertNull($this->admin->fresh()->locale);
+    }
+
+    #[Test]
+    public function non_admins_cannot_change_someone_elses_interface_locale(): void
+    {
+        $translator = $this->createUser(Language::all(), ['locale' => 'de']);
+        $this->actingAs($translator)->post(route('interpresso.translators.update', $this->admin), $this->profile(['locale' => 'fr']))->assertForbidden();
+        $this->assertNull($this->admin->fresh()->locale);
+        $this->assertSame('de', $translator->fresh()->locale);
+    }
+
+    #[Test]
     public function pending_notifications_are_sent_for_assigned_languages(): void
     {
         Notification::fake();

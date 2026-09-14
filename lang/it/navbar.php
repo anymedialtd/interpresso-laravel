@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'change_language' => 'Cambia lingua',
     'toggle_theme' => 'Attiva o disattiva il tema scuro',
     'theme' => 'Chiaro / Scuro',
     'open_menu' => 'Apri menu principale',

@@ -6,8 +6,10 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
 use Illuminate\Validation\Rules\Exists;
+use Illuminate\Validation\Rules\In;
 use AnyMedia\Interpresso\Models\Language;
 use AnyMedia\Interpresso\Models\Translator;
+use AnyMedia\Interpresso\Services\InterfaceLocales;
 
 class UpdateTranslatorRequest extends FormRequest
 {
@@ -24,7 +26,7 @@ class UpdateTranslatorRequest extends FormRequest
     /**
      * Ignore only the translator bound to the {translator} route parameter.
      *
-     * @return array<string, string|list<string|Unique|Exists>>
+     * @return array<string, string|list<string|Unique|Exists|In>>
      */
     public function rules(): array
     {
@@ -42,6 +44,7 @@ class UpdateTranslatorRequest extends FormRequest
             'email' => ['required', 'email', Rule::unique($connection . '.' . $table, 'email')->ignore($translator)],
             'phone' => ['nullable', 'string', Rule::unique($connection . '.' . $table, 'phone')->ignore($translator)],
             'admin' => 'nullable|bool',
+            'locale' => ['nullable', 'string', Rule::in(resolve(InterfaceLocales::class)->codes())],
             'first_name' => 'required|string|min:2',
             'last_name' => 'required|string|min:2',
             'languages' => $this->boolean('admin') ? 'nullable|array' : 'required|array|min:1',
@@ -56,9 +59,15 @@ class UpdateTranslatorRequest extends FormRequest
      */
     public function translatorAttributes(): array
     {
-        /** @var array{email: string, phone?: string|null, first_name: string, last_name: string, admin?: bool|0|1|'0'|'1'|null} $attributes Validated profile fields. */
-        $attributes = $this->safe()->only(['email', 'phone', 'first_name', 'last_name', 'admin']);
+        /** @var array{email: string, phone?: string|null, locale?: string|null, first_name: string, last_name: string, admin?: bool|0|1|'0'|'1'|null} $attributes Validated profile fields. */
+        $attributes = $this->safe()->only(['email', 'phone', 'locale', 'first_name', 'last_name', 'admin']);
         $attributes['admin'] = $this->boolean('admin');
         return $attributes;
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return ['locale.*' => __('interpresso::global.invalid_locale')];
     }
 }

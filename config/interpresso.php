@@ -14,6 +14,10 @@ return [
       */
     'enabled' => env('INTERPRESSO_ENABLED', true),
 
+    // Default interface language. Translator and browser preferences take priority.
+    // Null follows app.locale when it is available in the package's lang directory.
+    'locale' => env('INTERPRESSO_LOCALE'),
+
     // Headers apply only to package web routes, including the login page.
     'security_headers' => [
         'enabled' => env('INTERPRESSO_SECURITY_HEADERS_ENABLED', true),

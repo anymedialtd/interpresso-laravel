@@ -51,9 +51,10 @@ class LanguageTest extends BaseTestCase
     #[Test]
     public function translator_sees_only_assigned_languages_without_admin_actions(): void
     {
+        // Native names also appear in the interface switcher, independently of assignments.
         Language::query()->create(['name' => 'German', 'native_name' => 'Deutsch', 'code' => 'de']);
         $this->actingAs($this->translator)->get(route('interpresso.languages'))->assertOk()
-            ->assertSee($this->language->native_name)->assertDontSee('Deutsch')
+            ->assertSee($this->language->native_name)->assertDontSee('German')
             ->assertDontSee(__('interpresso::languages.button.import_languages'))
             ->assertDontSee(__('interpresso::languages.button.import_translations'))
             ->assertDontSee(__('interpresso::languages.button.add_language'))
@@ -81,7 +82,7 @@ class LanguageTest extends BaseTestCase
     {
         $language = Language::query()->create(['name' => 'German', 'native_name' => 'Deutsch', 'code' => 'de']);
         $this->actingAs($this->admin)->post(route('interpresso.languages.delete', $language))->assertRedirect();
-        $this->get(route('interpresso.languages'))->assertOk()->assertDontSee('Deutsch')->assertSee($this->language->native_name);
+        $this->get(route('interpresso.languages'))->assertOk()->assertDontSee('German')->assertSee($this->language->native_name);
         $this->assertDatabaseMissing(config('interpresso.table_languages'), ['id' => $language->id]);
     }
 
@@ -91,8 +92,8 @@ class LanguageTest extends BaseTestCase
         foreach ([['de', 'German', 'Deutsch'], ['fr', 'French', 'français']] as [$code, $name, $native]) {
             Language::query()->create(['code' => $code, 'name' => $name, 'native_name' => $native]);
         }
-        $this->actingAs($this->admin)->get(route('interpresso.languages'))->assertSee('Deutsch')->assertSee('français');
+        $this->actingAs($this->admin)->get(route('interpresso.languages'))->assertSee('German')->assertSee('French');
         $this->get(route('interpresso.languages', ['search' => 'English']))->assertOk()
-            ->assertSee($this->language->native_name)->assertDontSee('Deutsch')->assertDontSee('français');
+            ->assertSee($this->language->native_name)->assertDontSee('German')->assertDontSee('French');
     }
 }

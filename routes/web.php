@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use AnyMedia\Interpresso\Controllers\BatchController;
 use AnyMedia\Interpresso\Controllers\LanguageController;
 use AnyMedia\Interpresso\Controllers\LoginController;
+use AnyMedia\Interpresso\Controllers\LocaleController;
 use AnyMedia\Interpresso\Controllers\ManualController;
 use AnyMedia\Interpresso\Controllers\NotificationController;
 use AnyMedia\Interpresso\Controllers\SettingController;
@@ -14,6 +15,7 @@ Route::prefix(config('interpresso.prefix'))->middleware(['interpresso.security-h
     Route::get(config('interpresso.login_url'), [LoginController::class, 'index'])->name('interpresso.login');
     Route::post(config('interpresso.login_url'), [LoginController::class, 'login'])->name('interpresso.login.submit');
     Route::post('logout', [LoginController::class, 'logout'])->name('interpresso.logout');
+    Route::post('locale', [LocaleController::class, 'update'])->name('interpresso.locale.update');
 
     Route::middleware([config('interpresso.auth_guard'), 'interpresso.translator'])->group(function (): void {
         Route::get(config('interpresso.languages_url'), [LanguageController::class, 'index'])->name('interpresso.languages');

@@ -4,7 +4,7 @@ Dies ist eine Übersetzung des englischen Originals, das maßgeblich bleibt.
 
 Dieses Handbuch wird in der Übersetzungsverwaltung unter der Route `interpresso.manual` angezeigt, normalerweise unter `/translator/manual`. Nutzen Sie das automatisch erzeugte Inhaltsverzeichnis zur Navigation. Auf breiten Bildschirmen bleibt es neben dem Artikel sichtbar und lässt sich innerhalb des Fensters scrollen, damit alle Abschnitte erreichbar bleiben. Die vier Arbeitsbereiche sind Sprachen, Übersetzungen, Übersetzer und Einstellungen.
 
-Die Oberfläche richtet sich nach `app.locale` der Hostanwendung. Deutsch (`de`), Französisch (`fr`), Spanisch (`es`) und Italienisch (`it`) sind enthalten. Für die aktive Sprache wird `docs/APPLICATION_MANUAL.{locale}.md` geladen. Fehlt eine Übersetzung, wird `docs/APPLICATION_MANUAL.md` verwendet. Das englische Original bleibt maßgeblich. Übersetzte Überschriften behalten die Abschnittsanker des Originals.
+Jeder Übersetzer kann die Oberflächensprache unabhängig von `app.locale` der Hostanwendung wählen. Englisch (`en`), Deutsch (`de`), Französisch (`fr`), Spanisch (`es`) und Italienisch (`it`) sind enthalten. Für die aktive Sprache wird `docs/APPLICATION_MANUAL.{locale}.md` geladen. Fehlt eine Übersetzung, wird `docs/APPLICATION_MANUAL.md` verwendet. Das englische Original bleibt maßgeblich. Übersetzte Überschriften behalten die Abschnittsanker des Originals.
 
 ## Erste Schritte {#getting-started}
 
@@ -411,6 +411,18 @@ Eine vorhandene Einstellung in `localStorage["color-theme"]` wird beim ersten St
 Als Cookiepfad wird das URL-Präfix des Pakets verwendet, normalerweise `/translator`. Beim Speichern wird ein Duplikat am Pfad mit abschließendem Schrägstrich (`/translator/`) entfernt, damit ein älteres, spezifischeres Cookie die neue Auswahl bei der nächsten Anfrage nicht überschreibt.
 
 Das Paket aktiviert standardmäßig strenge Browser-Sicherheitsheader. Skripte und Styles werden aus externen Dateien geladen, Meldungsdaten stehen in einem maskierten HTML-Attribut, und die Oberfläche lässt sich nicht in einen Frame einbetten. Bei CDN-Bereitstellungen müssen erlaubte Ressourcenursprünge in `interpresso.security_headers.extra_sources` konfiguriert werden; siehe [Konfiguration](CONFIGURATION.md#browser-security-headers). Die Header gelten nur für Webrouten des Pakets.
+
+### Oberflächensprache {#interface-language}
+
+Wählen Sie auf jeder Seite, auch bei der Anmeldung, English, Deutsch, Français, Español oder Italiano in der Navigation und drücken Sie **Sprache ändern**. Die nächste Seitenantwort zeigt sofort die gewählte Sprache und das entsprechende Handbuch. Das Formular funktioniert ohne JavaScript.
+
+Angemeldete Änderungen werden im optionalen Feld `locale` des Übersetzers und im Cookie `interpresso-locale` gespeichert. Ohne Anmeldung wird nur das Cookie gesetzt. Es gilt ein Jahr und verwendet den URL-Präfix des Pakets, normalerweise `/translator`; es ist verschlüsselt, HttpOnly, SameSite=Lax und bei HTTPS Secure. Die Kontoeinstellung bleibt nach Abmeldung und erneuter Anmeldung erhalten, auch in einem anderen Browser.
+
+Es gilt der erste verfügbare Wert: Kontoeinstellung, Cookie, `interpresso.locale`, dann `app.locale`. Ungültige Werte werden ignoriert. Passt keiner, wird Englisch verwendet, bei entferntem Englisch die erste verfügbare Sprache. Eine unbekannte Sprache wird beim Absenden ohne Speicherung abgewiesen. Die Auswahl stammt aus den `lang/`-Verzeichnissen des Pakets und wird für die Laufzeit der Anwendung zwischengespeichert. Starten Sie dauerhaft laufende Anwendungsprozesse nach dem Hinzufügen von Übersetzungen neu. Mit `global.locale_name` erhält ein neuer Katalog seine muttersprachliche Bezeichnung; andernfalls erscheint sein Code.
+
+Administratoren können die **Oberflächensprache** beim Anlegen oder Bearbeiten eines Übersetzerprofils setzen oder leeren. **Browser / Standard** löscht die Kontoeinstellung und verwendet wieder Cookie und Konfiguration. Sprachzuweisungen, Ausgangssprache für Importe und Einstellungen der Hostanwendung bleiben unverändert.
+
+Upgrades ergänzen eine optionale Spalte `locale`, ohne bestehende Konten nachträglich zu befüllen. Führen Sie die Paketmigrationen aus und aktualisieren Sie veröffentlichte Views, falls Ihre Anwendung diese überschreibt.
 
 ## CLI-Referenz {#cli-reference}
 
