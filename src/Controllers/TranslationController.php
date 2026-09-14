@@ -188,6 +188,9 @@ class TranslationController extends BaseController
         $translation = $this->resolveTranslation($id, $language);
         abort_unless(Setting::getCached()->enable_open_ai_translations && $language->code === config('app.locale'), 403);
         $value = $this->draft($request);
+        if (!$this->canDispatchBatch()) {
+            return $this->backToLanguage($language);
+        }
         if (($lock = $this->acquireProcessLock('update translations for all languages')) === null) {
             return $this->backToLanguage($language);
         }
@@ -277,6 +280,9 @@ class TranslationController extends BaseController
     public function approveAllTranslations(Language $language, BatchProcessor $processor): RedirectResponse
     {
         $this->authorizeLanguage($language);
+        if (!$this->canDispatchBatch('php artisan interpresso:approve-translations --translator=' . $this->authUser()->id . ' --language=' . escapeshellarg($language->code))) {
+            return $this->backToLanguage($language);
+        }
         if (($lock = $this->acquireProcessLock('approve language translations')) === null) {
             return $this->backToLanguage($language);
         }
@@ -299,6 +305,10 @@ class TranslationController extends BaseController
     public function exportTranslationsForLanguage(Request $request, Language $language, BatchProcessor $processor): RedirectResponse
     {
         $this->authorizeLanguage($language);
+        if (!$this->canDispatchBatch('php artisan interpresso:export-translations --language=' . escapeshellarg($language->code)
+            . ($request->boolean('exportOnlyModels') ? ' --only-models' : ''))) {
+            return $this->backToLanguage($language);
+        }
         if (($lock = $this->acquireProcessLock('export language translations')) === null) {
             return $this->backToLanguage($language);
         }

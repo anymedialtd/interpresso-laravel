@@ -257,11 +257,12 @@ class ProcessLockTest extends BaseTestCase
     }
 
     #[Test]
-    public function sync_ui_batches_refuse_a_live_cron_lease_and_allow_an_expired_one(): void
+    public function queued_ui_batches_refuse_a_live_cron_lease_and_allow_an_expired_one(): void
     {
         $this->seedBrowserScenario('bulk');
         $lock = new ProcessLock();
         $lock->acquire('cron-host:567 import', 1);
+        $this->useDatabaseQueue();
         foreach (['import-languages', 'import-translations', 'find-missing', 'approve', 'export'] as $action) {
             $this->post(route('interpresso.languages.' . $action))->assertRedirect()
                 ->assertSessionHas('toast.type', 'WARNING')
@@ -276,12 +277,14 @@ class ProcessLockTest extends BaseTestCase
         $this->travel(2)->seconds();
         $this->post(route('interpresso.languages.approve'))->assertRedirect();
         $this->assertDatabaseCount('job_batches', 1);
+        $this->runWorker();
         $this->assertCleared();
     }
 
     #[Test]
     public function api_reports_expiry_and_rejects_force_export_during_a_local_cron_run(): void
     {
+        $this->useDatabaseQueue();
         config(['interpresso.api_shared_api_key' => 'lock-test-key']);
         $lock = new ProcessLock();
         $lock->acquire('cron:123 import', 60);
@@ -329,6 +332,7 @@ class ProcessLockTest extends BaseTestCase
     #[Test]
     public function failure_while_preparing_a_batch_releases_all_lock_columns(): void
     {
+        $this->useDatabaseQueue();
         $this->actingAs(Translator::firstOrFail());
         Bus::shouldReceive('batch')->once()->andThrow(new \TypeError('Cannot prepare batch'));
         $this->post(route('interpresso.languages.import-languages'))->assertStatus(500);
@@ -354,18 +358,15 @@ class ProcessLockTest extends BaseTestCase
     }
 
     #[Test]
-    public function deferred_export_failure_releases_the_lease_after_the_response(): void
+    public function cli_sync_batch_failure_releases_the_lease(): void
     {
         $this->mock(ExportTranslationService::class)->shouldReceive('forceExportTranslationForLanguage')->once()
-            ->andThrow(new \TypeError('Deferred export failed'));
-        resolve(BatchProcessor::class)->dispatchAfterResponse([new ForceExportTranslationJob(Language::firstOrFail())]);
-        $this->assertTrue((new ProcessLock())->isLocked());
-        $this->assertDatabaseCount('job_batches', 0);
+            ->andThrow(new \TypeError('CLI export failed'));
         try {
-            app()->terminate();
-            $this->fail('The deferred failure must propagate.');
+            resolve(BatchProcessor::class)->dispatch([new ForceExportTranslationJob(Language::firstOrFail())]);
+            $this->fail('The CLI failure must propagate.');
         } catch (\TypeError $error) {
-            $this->assertSame('Deferred export failed', $error->getMessage());
+            $this->assertSame('CLI export failed', $error->getMessage());
         }
         $this->assertCleared();
     }

@@ -19,7 +19,7 @@ There are no URL, status or console allowlists. Failures produce a `browser-heal
 
 Intentional authorization denials use Playwright's session-sharing request client and PHPUnit, where their status is asserted explicitly. The browser error/retry case injects an invalid successful JSON response; actual service HTTP 502 behavior is also checked in PHPUnit and the JavaScript HTTP tests. This keeps normal browser traffic subject to the guard without suppressing expected errors globally.
 
-Every application spec resets its disposable SQLite database, file cache, session directory and language files before login. Persistent file caching makes login throttling observable across real HTTP requests. The E2E-only provider is inert unless `INTERPRESSO_E2E=1`; it isolates language/cache/session paths, uses synchronous real jobs, stores mail in memory, and substitutes only the external AI translation service. Imports and exports use actual files. Model exports update a real disposable JSON column. Fixture scenarios are also exercised through HTTP by PHPUnit.
+Every application spec resets its disposable SQLite database, file cache, session directory and language files before login. Persistent file caching makes login throttling observable across real HTTP requests. The E2E-only provider is inert unless `INTERPRESSO_E2E=1`; it isolates language/cache/session paths, defaults to sync with bulk HTTP refusal, lets success tests select database queueing and a separate CLI worker, stores mail in memory, and substitutes only the external AI translation service. Imports and exports use actual files. Model exports update a real disposable JSON column. Fixture scenarios are also exercised through HTTP by PHPUnit.
 
 ## Login and shared layout
 
@@ -51,7 +51,7 @@ Sources: [languages](../resources/views/languages.blade.php), [table](../resourc
 | View row link | `interpresso.translations` for the selected language | `translations.spec.js`, `permissions.spec.js`, `bulk-actions.spec.js` |
 | Delete row action form | `interpresso.languages.delete`; language and its translations disappear, including after re-adding the language | `bulk-actions.spec.js` |
 | Import Languages action form | `interpresso.languages.import-languages`; discovers the fixture's Italian directory | `bulk-actions.spec.js` |
-| Import Translations action form | `interpresso.languages.import-translations`; persists real PHP and JSON file contents | `bulk-actions.spec.js` |
+| Import Translations action form | `interpresso.languages.import-translations`; a worker persists real PHP and JSON file contents; sync shows the CLI command without a batch or writes | `bulk-actions.spec.js`, `queue-refusal.spec.js` |
 | Find Missing Translations action form | `interpresso.languages.find-missing`; creates six missing German counterparts | `bulk-actions.spec.js` |
 | Approve (All Languages) Translations action form | `interpresso.languages.approve`; persisted approval in English and German | `bulk-actions.spec.js` |
 | Export All Languages action form | `interpresso.languages.export`, `exportOnlyModels=0`; exports approved eligible rows to English and German files | `bulk-actions.spec.js` |

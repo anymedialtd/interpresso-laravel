@@ -79,34 +79,6 @@ class BatchProcessor
         }
     }
 
-    /**
-     * Keep ownership between the HTTP response and dispatch, including dispatch failures.
-     * @param list<BaseJob> $jobs
-     * @param (Closure(): void)|null $then
-     */
-    public function dispatchAfterResponse(array $jobs, ?Closure $then = null, ?ProcessLock $lock = null): void
-    {
-        $lock ??= $this->acquireLock();
-        $deferredLock = $lock->transfer();
-        $registered = false;
-        try {
-            app()->terminating(static function () use ($jobs, $then, $deferredLock): void {
-                try {
-                    if ($jobs !== []) {
-                        resolve(self::class)->dispatch($jobs, $then, $deferredLock);
-                    }
-                } finally {
-                    $deferredLock->release();
-                }
-            });
-            $registered = true;
-        } finally {
-            if (!$registered) {
-                $deferredLock->release();
-            }
-        }
-    }
-
     private function acquireLock(): ProcessLock
     {
         $lock = resolve(ProcessLock::class);

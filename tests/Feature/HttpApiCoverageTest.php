@@ -16,7 +16,7 @@ use AnyMedia\Interpresso\Tests\BaseTestCase;
 
 class HttpApiCoverageTest extends BaseTestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \AnyMedia\Interpresso\Tests\Traits\InteractsWithBackgroundProcesses;
 
     private const KEY = 'http-tests-only-shared-key';
 
@@ -69,14 +69,17 @@ class HttpApiCoverageTest extends BaseTestCase
     }
 
     #[Test]
-    public function force_export_executes_after_the_response_and_reexports_previously_exported_values(): void
+    public function force_export_queues_work_and_a_worker_reexports_previously_exported_values(): void
     {
         $language = Language::firstOrFail();
+        $this->useDatabaseQueue();
         File::put(app()->langPath('en.json'), '{"force":"stale file"}');
         $language->translations()->create(['language_code' => 'en', 'type' => 'json', 'namespace' => '', 'group' => '',
             'shared_identifier' => 'force-export', 'key' => 'force', 'value' => 'Current database value', 'approved' => true, 'exported' => true, 'needs_translation' => false]);
         $this->postJson(route('interpresso.api.force-export'), ['api_key' => self::KEY])->assertOk()
             ->assertJsonPath('message', __('interpresso::translations.export_on_other_host_started', ['host' => 'http://localhost']));
+        $this->assertSame('stale file', json_decode(File::get(app()->langPath('en.json')), true)['force']);
+        $this->runWorker();
         $this->assertSame('Current database value', json_decode(File::get(app()->langPath('en.json')), true)['force']);
         $this->assertSame(0, DB::table('job_batches')->sum('failed_jobs'));
         $this->assertFalse(Setting::firstOrFail()->process_running);

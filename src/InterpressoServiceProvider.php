@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Support\ServiceProvider;
+use AnyMedia\Interpresso\Console\Commands\ApproveTranslations;
 use AnyMedia\Interpresso\Console\Commands\DeveloperDownloadToLocalCommand;
 use AnyMedia\Interpresso\Console\Commands\ExportTranslationAfterDeployment;
 use AnyMedia\Interpresso\Console\Commands\ExportTranslations;
@@ -217,6 +218,7 @@ class InterpressoServiceProvider extends ServiceProvider
                 ImportLanguages::class,
                 ImportTranslations::class,
                 FindMissingTranslations::class,
+                ApproveTranslations::class,
                 ExportTranslations::class,
                 SendAutomaticPendingNotifications::class,
                 DeveloperDownloadToLocalCommand::class,

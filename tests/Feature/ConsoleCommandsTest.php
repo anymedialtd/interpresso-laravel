@@ -25,6 +25,113 @@ class ConsoleCommandsTest extends BaseTestCase
 {
     use RefreshDatabase, InteractsWithBackgroundProcesses;
 
+    public function setUp(): void
+    {
+        parent::setUp();
+        config(['queue.default' => 'sync', 'queue.connections.sync.driver' => 'sync']);
+    }
+
+    #[Test]
+    #[DataProvider('approvalScopes')]
+    public function approval_runs_inline_in_cli_under_sync_and_records_the_administrator(bool $oneLanguage): void
+    {
+        $this->seedBrowserScenario('bulk');
+        $admin = Translator::where('admin', true)->firstOrFail();
+        $options = ['--translator' => (string) $admin->id] + ($oneLanguage ? ['--language' => 'en'] : []);
+        $this->artisan('interpresso:approve-translations', $options)
+            ->expectsOutput('Total translations approved: ' . ($oneLanguage ? 3 : 4) . '.')->assertExitCode(0);
+        $this->assertSame($oneLanguage ? 1 : 0, Translation::where('approved', false)->count());
+        $this->assertSame($oneLanguage ? 3 : 4, Translation::where('approved_by', $admin->id)->count());
+        $this->assertSame(0, Translation::where('language_code', 'en')->where('approved', false)->count());
+        $this->assertDatabaseCount('job_batches', 0);
+        $this->assertDatabaseCount('jobs', 0);
+        $this->assertFalse(Setting::getCached()->process_running);
+    }
+
+    public static function approvalScopes(): array
+    {
+        return [[true], [false]];
+    }
+
+    #[Test]
+    #[DataProvider('invalidApprovalOptions')]
+    public function approval_rejects_invalid_attribution_and_scope_without_writes(array $options): void
+    {
+        $this->seedBrowserScenario('bulk');
+        $before = Translation::orderBy('id')->get()->toArray();
+        $this->artisan('interpresso:approve-translations', $options)->assertExitCode(1);
+        $this->assertSame($before, Translation::orderBy('id')->get()->toArray());
+        $this->assertDatabaseCount('notifications', 0);
+        $this->assertFalse(Setting::getCached()->process_running);
+    }
+
+    public static function invalidApprovalOptions(): array
+    {
+        return [
+            'missing administrator' => [[]],
+            'non administrator' => [['--translator' => '2']],
+            'unknown administrator' => [['--translator' => '99999']],
+            'invalid administrator' => [['--translator' => '1x']],
+            'unknown language' => [['--translator' => '1', '--language' => 'unknown']],
+        ];
+    }
+
+    #[Test]
+    public function approval_command_releases_its_lease_when_the_service_fails(): void
+    {
+        $this->seedBrowserScenario('bulk');
+        $this->mock(\AnyMedia\Interpresso\Services\ApproveLanguagesService::class)->shouldReceive('approveLanguages')->once()
+            ->andThrow(new \TypeError('CLI approval failed'));
+        try {
+            $this->artisan('interpresso:approve-translations', ['--translator' => '1'])->run();
+            $this->fail('The command must propagate the failure.');
+        } catch (\TypeError $error) {
+            $this->assertSame('CLI approval failed', $error->getMessage());
+        }
+        $this->assertFalse(Setting::getCached()->process_running);
+    }
+
+    #[Test]
+    #[DataProvider('forceOptions')]
+    public function language_export_under_sync_preserves_other_languages(array $options, bool $force): void
+    {
+        $this->seedBrowserScenario('bulk');
+        Setting::firstOrFail()->update(['db_loader' => false]);
+        Setting::getFreshCached();
+        Translation::where('language_code', 'de')->update(['approved' => true]);
+        $german = Translation::where('language_code', 'de')->get()->toArray();
+        $this->artisan('interpresso:export-translations', $options + ['--language' => 'en'])->assertExitCode(0);
+        $this->assertTrue(Translation::where('key', 'vendor_notice')->firstOrFail()->exported);
+        $this->assertSame($german, Translation::where('language_code', 'de')->get()->toArray());
+        $this->assertFileDoesNotExist(app()->langPath('de/e2e.php'));
+        $this->assertSame($force, File::exists(app()->langPath('en/e2e.php')));
+        $this->assertDatabaseCount('job_batches', 0);
+        $this->assertDatabaseCount('jobs', 0);
+    }
+
+    #[Test]
+    public function model_only_language_export_under_sync_preserves_files_and_other_model_locales(): void
+    {
+        $this->seedBrowserScenario('models');
+        Setting::firstOrFail()->update(['db_loader' => false]);
+        Setting::getFreshCached();
+        $this->artisan('interpresso:export-translations', ['--language' => 'en', '--only-models' => true])->assertExitCode(0);
+        $this->assertSame(['en' => 'Model English', 'de' => 'Old German'], json_decode(DB::table('e2e_articles')->value('title'), true));
+        $this->assertFalse(Translation::where('key', 'vendor_notice')->firstOrFail()->exported);
+        $this->assertFileDoesNotExist(app()->langPath('vendor/e2e-vendor/en/e2e.php'));
+        $this->assertDatabaseCount('jobs', 0);
+    }
+
+    #[Test]
+    public function export_rejects_an_unknown_language_instead_of_exporting_all_languages(): void
+    {
+        $this->seedBrowserScenario('bulk');
+        $before = Translation::orderBy('id')->get()->toArray();
+        $this->artisan('interpresso:export-translations', ['--language' => 'unknown'])->assertExitCode(1);
+        $this->assertSame($before, Translation::orderBy('id')->get()->toArray());
+        $this->assertFalse(Setting::getCached()->process_running);
+    }
+
     #[Test]
     public function import_languages_discovers_directories_not_json_only_locales_and_notifies_admins(): void
     {
@@ -154,6 +261,7 @@ class ConsoleCommandsTest extends BaseTestCase
             }
             yield ['interpresso:export-translations', ['--force' => '0'], $batchOnly];
             yield ['interpresso:export-translations', ['--force' => '1'], $batchOnly];
+            yield ['interpresso:approve-translations', ['--translator' => '1'], $batchOnly];
         }
     }
 
@@ -162,6 +270,8 @@ class ConsoleCommandsTest extends BaseTestCase
     public function command_errors_always_release_the_running_flag(string $command, string $service, string $method): void
     {
         $this->seedBrowserScenario();
+        Setting::firstOrFail()->update(['db_loader' => false]);
+        Setting::getFreshCached();
         $this->mock($service)->shouldReceive($method)->once()->andThrow(new \TypeError('Injected command failure'));
         try {
             $this->artisan($command)->run();

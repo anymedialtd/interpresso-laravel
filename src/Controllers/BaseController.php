@@ -8,6 +8,8 @@ use Illuminate\Routing\Controller;
 use AnyMedia\Interpresso\Models\Language;
 use AnyMedia\Interpresso\Models\Translation;
 use AnyMedia\Interpresso\Models\Translator;
+use AnyMedia\Interpresso\Services\QueueConfiguration;
+use AnyMedia\Interpresso\Services\Toast;
 
 abstract class BaseController extends Controller
 {
@@ -66,6 +68,21 @@ abstract class BaseController extends Controller
     protected function authorizeLanguage(Language $language): void
     {
         abort_unless($this->scopeLanguages(Language::query())->whereKey($language->id)->exists(), 403);
+    }
+
+    protected function canDispatchBatch(?string $command = null): bool
+    {
+        if (QueueConfiguration::defersWork()) {
+            return true;
+        }
+
+        /** @var string $queue */
+        $queue = config('interpresso.queue_name');
+        Toast::flash($command === null
+            ? __('interpresso::global.queue_worker_required', ['command' => 'php artisan queue:work --queue=' . escapeshellarg($queue)])
+            : QueueConfiguration::refusalMessage($command), 'WARNING', 20000);
+
+        return false;
     }
 
     /**

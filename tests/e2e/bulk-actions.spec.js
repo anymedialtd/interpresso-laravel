@@ -1,7 +1,9 @@
-import { test, expect, login, openTranslations, tableRow, submit, changeSetting } from './helpers.js';
+import { test, expect, submitBatch, login, openTranslations, tableRow, submit, changeSetting } from './helpers.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+
+test.use({ queueConnection: 'database' });
 
 test.beforeEach(async ({ page }) => { await login(page); });
 
@@ -21,13 +23,13 @@ test.describe('imports', () => {
     test.use({ fixtureScenario: 'imports' });
     test('Import Languages discovers a real language directory', async ({ page }) => {
         await expect(tableRow(page, 'Italian')).toHaveCount(0);
-        await submit(page, page.getByRole('button', { name: 'Import Languages', exact: true }));
+        await submitBatch(page, page.getByRole('button', { name: 'Import Languages', exact: true }));
         await page.reload();
         await expect(tableRow(page, 'Italian')).toBeVisible();
         await expect(tableRow(page, 'Italian').getByRole('cell', { name: 'it', exact: true })).toBeVisible();
     });
     test('Import Translations imports PHP and JSON file contents', async ({ page }) => {
-        await submit(page, page.getByRole('button', { name: 'Import Translations', exact: true }));
+        await submitBatch(page, page.getByRole('button', { name: 'Import Translations', exact: true }));
         await openTranslations(page);
         await page.reload();
         await expect(tableRow(page, 'imported')).toContainText('Imported from a real PHP file');
@@ -39,7 +41,7 @@ test('Find Missing Translations creates the missing rows for German', async ({ p
     await openTranslations(page, 'German');
     await expect(page.locator('tbody tr')).toHaveCount(0);
     await page.getByRole('navigation').getByRole('link', { name: 'Languages', exact: true }).click();
-    await submit(page, page.getByRole('button', { name: 'Find Missing Translations', exact: true }));
+    await submitBatch(page, page.getByRole('button', { name: 'Find Missing Translations', exact: true }));
     await openTranslations(page, 'German');
     await page.reload();
     await expect(page.locator('tbody tr')).toHaveCount(6);
@@ -49,7 +51,7 @@ test('Find Missing Translations creates the missing rows for German', async ({ p
 test.describe('approvals and exports', () => {
     test.use({ fixtureScenario: 'bulk' });
     test('Approve all languages approves rows in both languages', async ({ page }) => {
-        await submit(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
+        await submitBatch(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
         for (const language of ['English', 'German']) {
             await openTranslations(page, language);
             await page.reload();
@@ -64,12 +66,12 @@ test.describe('approvals and exports', () => {
             await changeSetting(page, 'db_loader', false);
             if (scope === 'language') {
                 await openTranslations(page);
-                await submit(page, page.getByRole('button', { name: 'Export Language', exact: true }));
+                await submitBatch(page, page.getByRole('button', { name: 'Export Language', exact: true }));
             } else {
                 await openTranslations(page, 'German');
-                await submit(page, page.getByRole('button', { name: 'Approve (de) Translations', exact: true }));
+                await submitBatch(page, page.getByRole('button', { name: 'Approve (de) Translations', exact: true }));
                 await page.getByRole('navigation').getByRole('link', { name: 'Languages', exact: true }).click();
-                await submit(page, page.getByRole('button', { name: 'Export All Languages', exact: true }));
+                await submitBatch(page, page.getByRole('button', { name: 'Export All Languages', exact: true }));
                 await openTranslations(page);
             }
             await page.reload();
@@ -88,7 +90,7 @@ test.describe('approvals and exports', () => {
     for (const scope of ['language', 'all languages']) {
         test(`model-only export for ${scope} reports when no model translations qualify`, async ({ page }) => {
             if (scope === 'language') await openTranslations(page);
-            await submit(page, page.getByRole('button', { name: scope === 'language' ? 'Export Translated Models' : 'Export All Translated Models', exact: true }));
+            await submitBatch(page, page.getByRole('button', { name: scope === 'language' ? 'Export Translated Models' : 'Export All Translated Models', exact: true }));
             await expect(page.getByText('Nothing exported.', { exact: true })).toBeVisible();
             await openTranslations(page);
             await page.reload();
@@ -104,7 +106,7 @@ test.describe('model exports', () => {
     for (const all of [false, true]) {
         test(`${all ? 'all-language' : 'single-language'} model export updates the actual JSON column`, async ({ page }) => {
             if (!all) await openTranslations(page);
-            await submit(page, page.getByRole('button', { name: all ? 'Export All Translated Models' : 'Export Translated Models', exact: true }));
+            await submitBatch(page, page.getByRole('button', { name: all ? 'Export All Translated Models' : 'Export Translated Models', exact: true }));
             await page.reload();
             const value = JSON.parse(execFileSync('php', ['-r', '$db = new PDO("sqlite:".$argv[1]); echo $db->query("SELECT title FROM e2e_articles WHERE id = 1")->fetchColumn();', join(__dirname, '.data/e2e.sqlite')], { encoding: 'utf8' }));
             expect(value).toEqual({ en: 'Model English', de: all ? 'Model German' : 'Old German' });
@@ -125,7 +127,7 @@ test.describe('running jobs', () => {
         await expect(page.getByText(/Jobs deleted: 1|1.*job/i).first()).toBeVisible();
         await page.reload();
         await expect(page.locator('#batch-progress')).toBeHidden();
-        await submit(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
+        await submitBatch(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
         await openTranslations(page);
         await page.reload();
         await expect(tableRow(page, 'checkout').getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);

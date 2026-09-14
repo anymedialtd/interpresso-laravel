@@ -1,7 +1,9 @@
-import { test, expect, login, openTranslations, submit, tableRow } from './helpers.js';
+import { test, expect, submitBatch, login, openTranslations, submit, tableRow } from './helpers.js';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+test.use({ queueConnection: 'database' });
 
 function state() {
     const { settings } = JSON.parse(readFileSync(join(__dirname, '.data/tables.json'), 'utf8'));
@@ -35,9 +37,9 @@ test.describe('a live cron lock without a worker', () => {
 
 test.describe('an expired cron lock without a worker', () => {
     test.use({ fixtureScenario: 'expired-lock' });
-    test('sync work reacquires the lease and clears all lock fields on completion', async ({ page }) => {
+    test('queued work reacquires the expired lease and the worker clears it on completion', async ({ page }) => {
         await login(page);
-        await submit(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
+        await submitBatch(page, page.getByRole('button', { name: 'Approve (All Languages) Translations', exact: true }));
         await openTranslations(page);
         await expect(tableRow(page, 'checkout').getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
         expect(state()).toEqual({

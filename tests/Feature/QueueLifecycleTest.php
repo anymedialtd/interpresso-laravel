@@ -130,14 +130,17 @@ class QueueLifecycleTest extends BaseTestCase
 
     #[Test]
     #[DataProvider('failingActions')]
-    public function failed_ui_jobs_release_the_running_flag_and_send_only_a_failure_notification(string $route, string $service, string $method): void
+    public function failed_queued_ui_jobs_release_the_running_flag_and_send_only_a_failure_notification(string $route, string $service, string $method): void
     {
         $this->seedBrowserScenario('bulk');
+        $this->useDatabaseQueue();
         $this->mock($service)->shouldReceive($method)->once()->andThrow(new \TypeError('Injected worker failure'));
         $params = str_starts_with($route, 'interpresso.translations.') ? ['language' => Language::where('code', 'en')->firstOrFail()] : [];
-        $this->post(route($route, $params))->assertStatus(500);
-        // Laravel removes a batch when synchronous dispatch throws.
-        $this->assertDatabaseCount('job_batches', 0);
+        $this->post(route($route, $params))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
+        $this->assertDatabaseCount('job_batches', 1);
+        $this->assertDatabaseCount('failed_jobs', 1);
+        $this->assertTrue(Bus::findBatch(session('batch_id'))->cancelled());
         $this->assertFalse(Setting::firstOrFail()->process_running);
         $this->assertFalse(Setting::getCached()->process_running);
         $this->assertAdminMessages([__('interpresso::global.something_wrong')]);

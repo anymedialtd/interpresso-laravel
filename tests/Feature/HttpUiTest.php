@@ -185,6 +185,7 @@ class HttpUiTest extends BaseTestCase
     #[DataProvider('bulkActions')]
     public function bulk_actions_dispatch_batches_and_flash_their_ids(string $action, string $job): void
     {
+        config(['queue.default' => 'database']);
         Bus::fake();
         $row = $this->createTranslation('pending approval');
         $row->update(['approved' => false]);

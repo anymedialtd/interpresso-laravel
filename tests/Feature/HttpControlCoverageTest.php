@@ -24,11 +24,14 @@ class HttpControlCoverageTest extends BaseTestCase
     #[Test]
     public function import_buttons_execute_real_batches_and_persist_file_contents(): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('imports');
         $this->post(route('interpresso.languages.import-languages'))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertDatabaseHas(config('interpresso.table_languages'), ['code' => 'it']);
         $this->assertSuccessfulBatch([__('interpresso::languages.import_languages_success', ['languages' => 'Italian']) . __('interpresso::global.reload_suggestion')]);
         $this->post(route('interpresso.languages.import-translations'))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertDatabaseHas(config('interpresso.table_translations'), ['key' => 'imported', 'value' => 'Imported from a real PHP file']);
         $this->assertDatabaseHas(config('interpresso.table_translations'), ['key' => 'Imported JSON key', 'value' => 'Imported from a real JSON file']);
         $this->assertSuccessfulBatch(array_map(fn ($code) => __('interpresso::languages.import_translations_success', ['total' => $code === 'en' ? 2 : 0, 'language_code' => $code]) . __('interpresso::global.reload_suggestion'), ['en', 'de', 'it']));
@@ -39,13 +42,16 @@ class HttpControlCoverageTest extends BaseTestCase
     #[Test]
     public function find_missing_and_approve_buttons_execute_real_jobs_for_both_languages(): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario();
         $german = Language::where('code', 'de')->firstOrFail();
         $this->post(route('interpresso.languages.find-missing'))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSame(6, $german->translations()->count());
         $this->assertSame(6, $german->translations()->where('needs_translation', true)->count());
         $this->assertSuccessfulBatch(array_map(fn ($code) => __('interpresso::languages.find_missing_translations_success', ['total' => $code === 'de' ? 6 : 0, 'language_code' => $code]) . __('interpresso::global.reload_suggestion'), ['en', 'de']));
         $this->post(route('interpresso.languages.approve'))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSame(0, Translation::where('approved', false)->count());
         $this->assertSame(0, Translation::where('needs_translation', true)->count());
         $this->assertSuccessfulBatch(array_map(fn ($language) => __('interpresso::translations.approved_language_success', ['language' => $language, 'total' => $language === 'English' ? 3 : 6]) . __('interpresso::global.reload_suggestion'), ['English', 'German']));
@@ -57,6 +63,7 @@ class HttpControlCoverageTest extends BaseTestCase
     #[DataProvider('exportScopes')]
     public function export_buttons_write_files_and_leave_ineligible_rows_unchanged(bool $all): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('bulk');
         $english = Language::where('code', 'en')->firstOrFail();
         $german = Language::where('code', 'de')->firstOrFail();
@@ -64,6 +71,7 @@ class HttpControlCoverageTest extends BaseTestCase
         $url = $all ? route('interpresso.languages.export') : route('interpresso.translations.export', $english);
         $before = Translation::where('key', 'checkout')->firstOrFail()->getAttributes();
         $this->post($url, ['exportOnlyModels' => false])->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSuccessfulBatch([($all
             ? __('interpresso::translations.export_languages_success', ['languages' => 'English, German', 'total' => 2])
             : __('interpresso::translations.export_language_success', ['language' => 'English', 'total' => 1])) . __('interpresso::global.reload_suggestion')]);
@@ -88,10 +96,12 @@ class HttpControlCoverageTest extends BaseTestCase
     #[DataProvider('exportScopes')]
     public function model_only_exports_update_the_json_column_and_leave_file_rows_untouched(bool $all): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('models');
         $english = Language::where('code', 'en')->firstOrFail();
         $url = $all ? route('interpresso.languages.export') : route('interpresso.translations.export', $english);
         $this->post($url, ['exportOnlyModels' => true])->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSuccessfulBatch([($all
             ? __('interpresso::translations.export_languages_success', ['languages' => 'English, German', 'total' => 2])
             : __('interpresso::translations.export_language_success', ['language' => 'English', 'total' => 1])) . __('interpresso::global.reload_suggestion')]);
@@ -103,11 +113,13 @@ class HttpControlCoverageTest extends BaseTestCase
     #[Test]
     public function language_approval_leaves_other_languages_unchanged(): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('bulk');
         $english = Language::where('code', 'en')->firstOrFail();
         $german = Translation::where('language_code', 'de')->firstOrFail();
         $before = $german->getAttributes();
         $this->post(route('interpresso.translations.approve-all', $english))->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSame(0, $english->translations()->where('approved', false)->count());
         $this->assertSame($before, $german->fresh()->getAttributes());
         $this->assertSuccessfulBatch([__('interpresso::translations.approved_language_success', ['language' => 'English', 'total' => 3]) . __('interpresso::global.reload_suggestion')]);
@@ -116,6 +128,7 @@ class HttpControlCoverageTest extends BaseTestCase
     #[Test]
     public function cancel_jobs_preserves_unrelated_work_and_unblocks_a_real_mutation(): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('running');
         $foreign = Bus::batch([])->name('another-package')->dispatch();
         DB::table('job_batches')->where('id', $foreign->id)->update(['finished_at' => null]);
@@ -128,12 +141,14 @@ class HttpControlCoverageTest extends BaseTestCase
         $this->getJson(route('interpresso.batch.progress'))->assertOk()->assertJsonPath('finished', true);
         $this->getJson(route('interpresso.batch.progress', ['id' => $foreign->id]))->assertForbidden();
         $this->post(route('interpresso.languages.approve'))->assertRedirect();
+        $this->runWorker();
         $this->assertSame(0, Translation::where('approved', false)->count());
     }
 
     #[Test]
     public function auto_translate_saves_root_and_other_languages_using_the_actual_job(): void
     {
+        $this->useDatabaseQueue();
         $this->seedBrowserScenario('examples');
         Setting::firstOrFail()->update(['enable_open_ai_translations' => true]);
         Setting::getFreshCached();
@@ -142,6 +157,7 @@ class HttpControlCoverageTest extends BaseTestCase
             ->withArgs(fn ($from, $to, $value) => $from->code === 'en' && $to->code === 'de' && $value === 'Changed root')->andReturn('Geaenderter Text');
         $this->post(route('interpresso.translations.update-all', ['language' => $root->language, 'id' => $root->id]), ['translatedValue' => 'Changed root'])
             ->assertRedirect()->assertSessionHas('batch_id');
+        $this->runWorker();
         $this->assertSame('Changed root', $root->fresh()->value);
         $other = Translation::where('language_code', 'de')->firstOrFail();
         $this->assertSame('Geaenderter Text', $other->value);

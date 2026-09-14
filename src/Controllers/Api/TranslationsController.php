@@ -14,6 +14,7 @@ use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Notifications\FlashMessage;
 use AnyMedia\Interpresso\Resources\TranslationResource;
 use AnyMedia\Interpresso\Services\ProcessLock;
+use AnyMedia\Interpresso\Services\QueueConfiguration;
 use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 
 class TranslationsController extends Controller
@@ -33,6 +34,9 @@ class TranslationsController extends Controller
      */
     public function forceExport(Request $request): JsonResponse
     {
+        if (!QueueConfiguration::defersWork()) {
+            return response()->json(['message' => QueueConfiguration::refusalMessage('php artisan interpresso:export-translations-deployment')], 503);
+        }
         // A peer invokes this while holding its own export lock. Check this DB only.
         $lock = $this->acquireProcessLock('force export on peer', true, false);
         if ($lock === null) {
@@ -53,7 +57,9 @@ class TranslationsController extends Controller
                 });
             };
 
-            resolve(BatchProcessor::class)->dispatchAfterResponse($batchArray, $then, $lock);
+            if ($batchArray !== []) {
+                resolve(BatchProcessor::class)->dispatch($batchArray, $then, $lock);
+            }
 
             return response()->json(['message' => __('interpresso::translations.export_on_other_host_started', ['host' => $host])]);
         } finally {

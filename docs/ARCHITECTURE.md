@@ -74,3 +74,5 @@ and the inter-host busy API includes owner, start, expiry, and separate queue st
 Settings cache refreshes update loader selection. Translation caches use a shared
 version and targeted invalidation. Bulk writes bypassing model events call
 `Translation::invalidateCacheAfterWrite()` so invalidation happens after commit.
+
+Bulk HTTP entry points validate the configured connection driver with `QueueConfiguration` before writes or lease acquisition. Unsafe connections refuse with a localized CLI instruction (toast for the UI, HTTP 503 JSON for peer force export). Batches dispatch to the queue during the request; worker execution is separate. CLI commands use the same services and lease under sync without this HTTP-only guard.

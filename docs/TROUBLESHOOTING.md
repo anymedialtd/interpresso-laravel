@@ -31,7 +31,7 @@ Symptoms:
 
 Checks:
 
-- A worker running for an asynchronous queue; sync/cron translation work needs no worker
+- A worker running for an asynchronous queue; sync CLI/cron commands need no worker, but bulk HTTP actions refuse sync
 - Queue tables exist (`jobs`, `job_batches`, `failed_jobs`)
 - queue name matches config (`interpresso.queue_name`)
 
@@ -144,3 +144,7 @@ Notes:
 Resolution:
 
 - Upgrade the host app to Laravel 12 or 13.
+
+## Bulk action says no queue worker is configured
+
+The configured queue connection uses `sync`, `null`, `deferred`, missing settings, or an unsafe failover path. Interpresso refuses bulk HTTP work before changing data. Run the exact Artisan command in the toast, or configure a database/Redis connection and a worker on `languageProcessor`. Rebuild cached configuration after changes. A deferring driver alone does not prove that a worker is running. The peer force-export API returns HTTP 503 with the same CLI instruction. See [supported execution modes and cron](CONFIGURATION.md#supported-execution-modes).

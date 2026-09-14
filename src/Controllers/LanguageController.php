@@ -73,6 +73,9 @@ class LanguageController extends BaseController
 
     public function importLanguages(BatchProcessor $processor): RedirectResponse
     {
+        if (!$this->canDispatchBatch('php artisan interpresso:import-languages')) {
+            return redirect()->route('interpresso.languages');
+        }
         if (($lock = $this->acquireProcessLock('import languages')) !== null) {
             try {
                 /** @var list<int> $ids Auto-incrementing language IDs. */
@@ -90,6 +93,9 @@ class LanguageController extends BaseController
 
     public function importTranslations(BatchProcessor $processor): RedirectResponse
     {
+        if (!$this->canDispatchBatch('php artisan interpresso:import-translations')) {
+            return redirect()->route('interpresso.languages');
+        }
         if (($lock = $this->acquireProcessLock('import translations')) !== null) {
             try {
                 $languages = Language::query()->when(Setting::getCached()->import_only_from_root_language,
@@ -110,6 +116,9 @@ class LanguageController extends BaseController
 
     public function findMissingTranslations(BatchProcessor $processor): RedirectResponse
     {
+        if (!$this->canDispatchBatch('php artisan interpresso:find-missing-translations')) {
+            return redirect()->route('interpresso.languages');
+        }
         if (($lock = $this->acquireProcessLock('find missing translations')) !== null) {
             try {
                 $languages = Language::all();
@@ -129,6 +138,9 @@ class LanguageController extends BaseController
 
     public function approveAllLanguagesTranslations(BatchProcessor $processor): RedirectResponse
     {
+        if (!$this->canDispatchBatch('php artisan interpresso:approve-translations --translator=' . $this->authUser()->id)) {
+            return redirect()->route('interpresso.languages');
+        }
         if (($lock = $this->acquireProcessLock('approve translations for all languages')) === null) {
             return redirect()->route('interpresso.languages');
         }
@@ -158,6 +170,9 @@ class LanguageController extends BaseController
 
     public function exportTranslationsForAllLanguages(Request $request, BatchProcessor $processor): RedirectResponse
     {
+        if (!$this->canDispatchBatch('php artisan interpresso:export-translations' . ($request->boolean('exportOnlyModels') ? ' --only-models' : ''))) {
+            return redirect()->route('interpresso.languages');
+        }
         if (($lock = $this->acquireProcessLock('export translations for all languages')) === null) {
             return redirect()->route('interpresso.languages');
         }

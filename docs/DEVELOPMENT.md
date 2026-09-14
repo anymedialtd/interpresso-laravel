@@ -100,11 +100,10 @@ uses `bash tests/e2e/work.sh --once` / `bash tests/e2e/work.sh` to advance it. I
 0/50/100 progress, stopped polling, discovery on a new page, completed rows and
 notifications, and cancellation followed by an allowed mutation. The `queued`
 fixture selects database queueing through an E2E-only marker file; ordinary fixtures
-retain synchronous jobs. Browser tests also require permission to bind/connect to
+default to sync so bulk HTTP actions refuse work. Tests exercising successful bulk actions use `queueConnection: 'database'` and `submitBatch()` to drain the queue through a separate CLI worker. `queue-refusal.spec.js` verifies sync refusal without database changes or a batch. Browser tests also require permission to bind/connect to
 the local Testbench server and launch Chromium.
 
-Batch callers should use `BatchProcessor::dispatch()` or `dispatchAfterResponse()`
-so acquisition and failure cleanup cover dispatch itself. The old raw
+Batch callers must use `BatchProcessor::dispatch()` so acquisition and failure cleanup cover dispatch itself. HTTP callers must check `QueueConfiguration::defersWork()` before any writes or lease acquisition, then use the existing toast or JSON error with a CLI command if refused. Commands can dispatch under sync or call services directly in the CLI process. Never defer batch execution to HTTP termination. The old raw
 `execute()`/`PendingBatch` path is now internal. `Setting::setJobsRunning()` is
 replaced by the owned `ProcessLock` handle; call `release()` in `finally` for
 custom synchronous work and `refresh()` periodically for long operations.

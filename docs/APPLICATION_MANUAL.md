@@ -269,7 +269,7 @@ The package exposes these POST endpoints under `/api`, independently of the pane
 
 - `/api/interpresso-has-jobs-running`: returns whether local package jobs or unfinished, uncancelled batches exist.
 - `/api/cancelJobs`: cancels local package batches and deletes local package database-queue jobs.
-- `/api/interpresso-force-export`: acquires a local lease and queues a forced export for every language after the response. Returns HTTP 409 with owner/start/expiry metadata if local work is busy. It does not check peer locks because the calling peer is still finishing its own export. This endpoint can write files even in DB-loader mode.
+- `/api/interpresso-force-export`: requires a deferring queue, acquires a local lease and queues a forced export for every language. Unsafe connections return HTTP 503 with a CLI replacement before any work starts. Returns HTTP 409 with owner/start/expiry metadata if local work is busy. It does not check peer locks because the calling peer is still finishing its own export. This endpoint can write files even in DB-loader mode.
 - `/api/interpresso-get-languages`: returns language records for developer download.
 - `/api/interpresso-get-paginated-translations`: returns translation records in pages of 500 for developer download.
 
@@ -283,21 +283,51 @@ Turning multi-host off stops automatic outgoing coordination requests; it does n
 
 The UI queues language/translation imports, missing-translation generation, bulk approvals, exports, and update-and-auto-translate operations in Laravel batches. Missing-translation batches add further jobs as work is discovered. Jobs use `interpresso.queue_name` (`languageProcessor` by default), and batches use `interpresso.batch_name` (`languageBatch`). Pending reminders and administrative completion notifications also use the package queue.
 
-Run a worker for this queue when using an asynchronous queue connection:
+Long-running translation work never runs inside an HTTP request, including after the response is flushed. Before any batch writes or lease acquisition, the UI and peer force-export endpoint inspect `queue.default` and `queue.connections.<connection>.driver`. Connection aliases are supported. `sync`, `null`, missing configuration, and Laravel's `deferred` driver are refused; failover is refused if any fallback is unsafe or cyclic. A configured asynchronous driver does not prove a worker is alive: queued jobs wait until one consumes them.
 
-```bash
-php artisan queue:work --queue=languageProcessor
+Choose one of these three supported modes:
+
+1. **Worker:** set `QUEUE_CONNECTION=database` (or `redis`) in the host application and run a supervised worker consuming `languageProcessor`, or your `interpresso.queue_name`. HTTP only enqueues batches. Execution is bounded by the worker's `--timeout`, PHP CLI memory/time settings, and process-manager or hosting limits. For example, use `php -d max_execution_time=0 artisan queue:work --queue=languageProcessor --timeout=900 --tries=1`, set the connection's `retry_after` above that timeout (for example 960 seconds), and set `INTERPRESSO_PROCESS_LOCK_TTL=1800`. For SQS configure the equivalent visibility timeout. Size these values for the longest job and queue wait; a timeout is per job, not per batch. Keep the worker supervised and inspect `failed_jobs` and application logs on failure.
+2. **Cron plus commands, without a worker:** set `QUEUE_CONNECTION=sync` and invoke the import, missing-translation, approval and export commands from the CLI. They call their services inline in that CLI process, and sync also delivers their queued notifications there. They are bounded by PHP CLI `max_execution_time`/`memory_limit`, OS resources, and any hosting or scheduler runtime cap, without a PHP-FPM/web-server deadline. `php -d max_execution_time=0 artisan ...` explicitly removes PHP's CLI time cap; it cannot remove a hosting cap. Commands share the process lease; a busy command reports the current owner and does no work. Review cron logs because a busy return is not successful completion of the requested work.
+3. **Sync for small installations only:** keep `QUEUE_CONNECTION=sync`, use the UI for browsing, single-row edits and reviews, and run bulk commands manually when needed. Ordinary HTTP interactions remain bounded by PHP-FPM, PHP's web time limit and the web server. Bulk buttons are still refused, regardless of translation count. Small installation size never enables inline HTTP imports, exports, approval batches or automatic translation of other languages. As the workload grows, use a worker or the cron setup above.
+
+After changing queue environment/configuration, rebuild the host's configuration cache if used (`php artisan config:cache`) and restart long-running workers. With `null`, CLI service calls can still run, but queued notifications are discarded; use `sync` for the no-worker modes.
+
+A refused bulk action shows a warning toast naming its exact CLI replacement. For example, **Import Translations** says: "No queue worker is configured, so this would run inside the web request and be cut off by PHP's time limit. Run: php artisan interpresso:import-translations". Nothing is imported, no batch starts, and no lease is acquired. Update-and-auto-translate requires a database/Redis queue and gives worker setup instructions before saving the root draft. Single-row editing and approval remain available.
+
+| UI/API action | CLI replacement |
+| --- | --- |
+| Import Languages | `php artisan interpresso:import-languages` |
+| Import Translations | `php artisan interpresso:import-translations` |
+| Find Missing Translations | `php artisan interpresso:find-missing-translations` |
+| Approve all languages | `php artisan interpresso:approve-translations --translator=1` |
+| Approve one language | `php artisan interpresso:approve-translations --translator=1 --language=en` |
+| Export all languages | `php artisan interpresso:export-translations` |
+| Export one language | `php artisan interpresso:export-translations --language=en` |
+| Export models | Add `--only-models` to the appropriate export command |
+| Peer API force export | `php artisan interpresso:export-translations-deployment` |
+
+The approval toast supplies the signed-in administrator's actual ID, and language-specific toasts supply the selected language code. The authenticated peer force-export API returns HTTP **503** with a JSON `message` containing the force-export command if the connection cannot defer work. `interpresso:export-translations-deployment` matches the peer API by rewriting files and models even in DB-loader mode; the normal `--force=1` command respects DB-loader mode. Each receiving host needs a deferring connection and a worker for peer-triggered export. A supported queue with a live process lock still returns **409**.
+
+### Crontab without a worker
+
+For a concrete no-worker setup on Linux, set `QUEUE_CONNECTION=sync` in the host application's environment/configuration. This daily crontab imports new sources, finds missing counterparts, then exports already approved translations. Replace the application path, PHP binary and times. The crontab owner must be able to write the application's storage and export paths. `flock` prevents overlapping invocations of this sequence on the same host; the package lease also coordinates individual commands and HTTP mutations.
+
+```cron
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+15 2 * * * /usr/bin/flock -n /srv/app/storage/interpresso-cron.lock /bin/sh -c 'cd /srv/app && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-languages && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:find-missing-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:export-translations' >> /srv/app/storage/logs/interpresso-cron.log 2>&1
 ```
 
-With a synchronous queue connection, work runs in the triggering process instead of requiring a worker. CLI import, missing-translation, and export commands call their services synchronously; their queued notifications can still require a worker. The automatic reminder command queues notifications rather than delivering mail itself.
+Approval is a deliberate review step, so it is not scheduled in this example. After review, run `php artisan interpresso:approve-translations --translator=1` with the actual administrator translator ID, optionally adding `--language=en`. Per-language exports use `php artisan interpresso:export-translations --language=en`; forced rewrites use `php artisan interpresso:export-translations --force=1`. Add `--only-models` for the model-export buttons. DB-loader mode already exports only models. The CLI commands run locally and do not propagate exports to peers; arrange commands on each host in a no-worker installation.
 
 Signed-in users get a batch progress indicator. Page loads recover an already running batch, and a redirect from a newly started action carries its batch ID. Progress polls once per second while the tab is visible, pauses while hidden, and stops when the batch finishes, is cancelled, or disappears. Completion produces a toast. Reload the table to see changed rows; polling does not reload it automatically.
 
 ### Why an action may be blocked
 
-Imports, find-missing, exports, bulk approval, update-and-auto-translate, and every single-row mutation (update, approve, request, remove request, restore) refuse to start while a live process lease, package job, or unfinished, uncancelled batch exists. Modal reads and AI draft suggestions remain available because they do not write translations. All eight working CLI commands use the shared guard too. Multi-host adds the peer checks described above; unreachable peers are ignored.
+Imports, find-missing, exports, bulk approval, update-and-auto-translate, and every single-row mutation (update, approve, request, remove request, restore) refuse to start while a live process lease, package job, or unfinished, uncancelled batch exists. Modal reads and AI draft suggestions remain available because they do not write translations. The working CLI commands use the shared guard too. Multi-host adds the peer checks described above; unreachable peers are ignored.
 
-All eight working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
+The working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
 
 `interpresso.process_lock_ttl` defaults to 900 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
 
@@ -349,7 +379,7 @@ The package enables strict browser security headers by default. Its scripts and 
 
 ## CLI Reference
 
-Run commands as `php artisan ...` from the host Laravel application's directory. These are all nine command signatures in `src/Console/Commands/`. All eight working commands acquire the shared process lease and can return early with the current owner and start time; that early return is not a completed operation. Commands use the saved settings unless an exception is specified below.
+Run commands as `php artisan ...` from the host Laravel application's directory. These are all ten command signatures in `src/Console/Commands/`. The working commands acquire the shared process lease and can return early with the current owner and start time; that early return is not a completed operation. Commands use the saved settings unless an exception is specified below.
 
 ### interpresso:import-languages
 
@@ -395,17 +425,32 @@ Use it after importing root-language keys or adding languages. **Limitation:** e
 php artisan interpresso:find-missing-translations
 ```
 
+### interpresso:approve-translations
+
+Signature:
+
+```text
+interpresso:approve-translations {--translator=} {--language=}
+```
+
+Synchronously approves all unapproved translations, or only those in `--language=en`. `--translator=ID` is required and must identify an existing administrator translator; approvals are attributed to that ID. Invalid attribution or an unknown language exits with status 1 without writes. The command uses the shared process lease, refreshes it between languages, invalidates translation caches through the existing approval service, and sends administrator result notifications. It works under `QUEUE_CONNECTION=sync` without a worker. Review translations before invoking it.
+
+```bash
+php artisan interpresso:approve-translations --translator=1
+php artisan interpresso:approve-translations --translator=1 --language=en
+```
+
 ### interpresso:export-translations
 
 Signature:
 
 ```text
-interpresso:export-translations {--force=}
+interpresso:export-translations {--force=} {--language=} {--only-models}
 ```
 
 Exports approved, not-updated translations. Ordinarily it only exports rows marked not exported. `--force` is a value-taking option, cast to boolean: use `--force=1` to include already exported rows; omitting it or using `--force=0` retains the ordinary behavior. Force does not bypass approval or the running-job guard.
 
-In file mode it exports PHP/JSON and model content. In DB-loader mode it passes model-only export and skips files. It runs synchronously and queues administrator result notifications; it does not trigger peer exports. The initial candidate count includes file rows even in DB mode, so its reported counts are not a count of files written.
+In file mode it exports PHP/JSON and model content. In DB-loader mode it passes model-only export and skips files. `--only-models` also restricts export to model rows in file mode. `--language=en` restricts both the candidate count and execution to that language; an unknown code fails without exporting anything. It runs synchronously and queues administrator result notifications; it does not trigger peer exports. Counts describe translation rows, not files.
 
 Use it for regular publication or, in file mode, a forced rewrite of files whose database rows are already marked exported.
 
@@ -501,7 +546,7 @@ Unlock does not stop a PHP process, cancel queue records, or roll back changes. 
 
 ### Jobs do not finish or another process is reported
 
-For asynchronous queues, confirm that a worker consumes the configured queue, normally `languageProcessor`. Cron/artisan and `QUEUE_CONNECTION=sync` require no worker for translation work. Check the reported process owner, start time, and expiry; use `interpresso:unlock` to clear stale metadata, or `--force` only after verifying the old run is stopped. Check the package queue's `jobs` records, unfinished `languageBatch` batches, application logs, and failed-job records. Pending notifications can also keep this queue occupied. A worker listening only to the default queue will not process the package queue.
+For asynchronous queues, confirm that a worker consumes the configured queue, normally `languageProcessor`. Cron/artisan commands under `QUEUE_CONNECTION=sync` require no worker for translation work; bulk HTTP actions always refuse sync. Check the reported process owner, start time, and expiry; use `interpresso:unlock` to clear stale metadata, or `--force` only after verifying the old run is stopped. Check the package queue's `jobs` records, unfinished `languageBatch` batches, application logs, and failed-job records. Pending notifications can also keep this queue occupied. A worker listening only to the default queue will not process the package queue.
 
 After checking whether work is still executing, use **Delete running Batch (Jobs)** for abandoned work. Pruning old batches is not cancellation. For multi-host installations, check peers and shared secrets; an unavailable peer is ignored during the busy check but export propagation can fail. Review the queue-table connection and non-database-queue limits above.
 

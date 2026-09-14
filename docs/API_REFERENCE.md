@@ -62,9 +62,19 @@ Supports standard Laravel `?page=N` query parameter.
 
 ### `POST /api/interpresso-force-export`
 
-Acquires a local process lease, dispatches force-export jobs for all languages after the response, and returns a start message. It returns HTTP 409 with `message` and `lock` (`owner`, `started_at`, `expires_at`) if busy. It checks local work only: the initiating peer may still hold its own export lease. Empty exports and failures release the lease. Peer API-key authentication is unchanged.
+Requires a deferring queue connection, acquires a local process lease, dispatches force-export jobs for all languages to the queue, and returns a start message. A worker executes the export outside the HTTP request. It returns HTTP 409 with `message` and `lock` (`owner`, `started_at`, `expires_at`) if busy. It checks local work only: the initiating peer may still hold its own export lease. Empty exports and failures release the lease. Peer API-key authentication is unchanged.
 
-Response:
+If the configured driver cannot defer work (`sync`, `null`, `deferred`, missing configuration, or unsafe failover), it refuses before any lease, batch or export writes and returns **HTTP 503**:
+
+```json
+{
+  "message": "No queue worker is configured, so this would run inside the web request and be cut off by PHP's time limit. Run: php artisan interpresso:export-translations-deployment"
+}
+```
+
+Run the command on the receiving host or configure an asynchronous connection and worker there. Peer exports require this on every receiving host.
+
+Accepted response:
 
 ```json
 {

@@ -21,7 +21,7 @@ class ExportTranslations extends Command
      *
      * @var string
      */
-    protected $signature = 'interpresso:export-translations {--force=}';
+    protected $signature = 'interpresso:export-translations {--force=} {--language=} {--only-models}';
 
     /**
      * The console command description.
@@ -33,46 +33,46 @@ class ExportTranslations extends Command
     /**
      * Execute the console command.
      */
-    public function handle(ExportTranslationService $exportTranslationService): void
+    public function handle(ExportTranslationService $exportTranslationService): int
     {
         $forceExport = (bool) $this->option('force');
-        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
+        $code = $this->option('language');
+        if ($code !== null && !Language::query()->where('code', $code)->exists()) {
+            $this->error(__('interpresso::commands.language_not_found'));
+            return self::FAILURE;
+        }
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return self::SUCCESS;
         try {
-            $languages = Language::find(Translation::query()
+            $onlyModels = (bool) $this->option('only-models') || Setting::getCached()->db_loader;
+            $query = Translation::query()
                 ->isUpdated(false)
+                ->when($code !== null, fn ($query) => $query->where('language_code', $code))
+                ->when($onlyModels, fn ($query) => $query->type('model'))
                 ->when(!$forceExport, function($query) {
                     $query->exported(false);
                 })
-                ->approved()->distinct()->pluck('language_id')->toArray());
+                ->approved();
+            $languages = Language::query()->whereIn('id', (clone $query)->distinct()->pluck('language_id'))->get();
 
             if (count($languages)) {
-                $total = Translation::query()
-                    ->isUpdated(false)
-                    ->when(!$forceExport, function($query) {
-                        $query->exported(false);
-                    })
-                    ->approved()
-                    ->count();
+                $total = (clone $query)->count();
                 $this->info('Exporting translations...');
-                Language::query()->each(function (Language $language) use ($exportTranslationService, $forceExport) {
+                foreach ($languages as $language) {
+                    $lock->refresh();
                     if($forceExport) {
-                        $setting = Setting::getCached();
-                        $exportTranslationService->forceExportTranslationForLanguage($language, null, $setting->db_loader);
+                        $exportTranslationService->forceExportTranslationForLanguage($language, null, $onlyModels);
                     } else {
-                        $setting = Setting::getCached();
-                        $exportTranslationService->exportTranslationForLanguage($language, null, $setting->db_loader);
+                        $exportTranslationService->exportTranslationForLanguage($language, null, $onlyModels);
                     }
-                });
+                }
                 Translator::notifyAdminExportedTranslationsAllLanguages($total, $languages);
-                $total -= Translation::query()
-                    ->isUpdated(false)->exported(false)
-                    ->approved()
-                    ->count();
+                $total -= (clone $query)->exported(false)->count();
                 $this->info('Total translations exported: ' . $total . '.');
 
             } else {
                 $this->info('Nothing to export.');
             }
+            return self::SUCCESS;
         } finally {
             $lock->release();
         }

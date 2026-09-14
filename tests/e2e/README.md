@@ -32,7 +32,7 @@ The base fixture supplies:
 
 Use `test.use({ fixtureScenario: '...' })` for actor/type filters, examples, imports, bulk actions, notifications, running jobs, live/expired cron locks, pagination or model exports. `fixtures.php` is also exercised through PHPUnit HTTP tests. Seeding must reach its completion marker; Tinker sometimes exits successfully after printing an exception, so the helper checks the marker explicitly.
 
-Jobs execute synchronously through real controllers/services. Import/export tests read real files; model export tests inspect the actual disposable JSON column after submitting the UI form. Mail uses the in-memory array transport. AI uses a deterministic external-service double, and suggestion timing/error cases intercept that response only. These tests do not send email or contact a paid AI service.
+Bulk HTTP jobs are dispatched to the database queue and executed by a separate CLI worker through real services. Sync fixtures verify HTTP refusal. Import/export tests read real files; model export tests inspect the actual disposable JSON column after submitting the UI form. Mail uses the in-memory array transport. AI uses a deterministic external-service double, and suggestion timing/error cases intercept that response only. These tests do not send email or contact a paid AI service.
 
 ## Browser assertions
 
@@ -55,10 +55,12 @@ Chromium must launch and the Testbench server must bind a local port. A sandbox 
 The `queued` scenario uses a database queue. `queue-progress.spec.js` submits the
 approval form, consumes jobs using `bash tests/e2e/work.sh`, and verifies persisted
 rows, notifications, completion, recovery after a fresh page load, stopped polling,
-and cancellation. Other scenarios keep synchronous queue execution. The queue marker
+and cancellation. Other scenarios default to sync unless the test selects `queueConnection: 'database'`. The queue marker
 is removed on every fixture reset. No queue/progress HTTP response is mocked in
 these completion tests.
 
 `process-lock.spec.js` exercises a live cron lease with empty queue tables and an
-expired lease followed by a synchronous UI batch. It verifies the owner/start
+expired lease followed by a queued UI batch completed by a CLI worker. It verifies the owner/start
 warning, refusal to write, and clearing of every lock column after completion.
+
+Bulk success specs select `queueConnection: 'database'` and call `submitBatch()` to execute queued work with a separate CLI worker. The default remains sync; `queue-refusal.spec.js` clicks Import Translations and checks its actionable refusal, unchanged data and absence of any batch.

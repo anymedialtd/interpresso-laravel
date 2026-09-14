@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 export { expect };
 
@@ -8,8 +9,10 @@ export { expect };
 // redirects, and also applied to popups/secondary tabs. There are no allowlists.
 export const test = base.extend({
     fixtureScenario: ['base', { option: true }],
-    database: [async ({ fixtureScenario }, use) => {
+    queueConnection: ['sync', { option: true }],
+    database: [async ({ fixtureScenario, queueConnection }, use) => {
         resetDatabase(fixtureScenario);
+        if (queueConnection === 'database') writeFileSync(join(__dirname, '.data/queue-connection'), 'database');
         await use();
     }, { auto: true }],
     browserHealth: [async ({ context, baseURL }, use, testInfo) => {
@@ -81,6 +84,22 @@ export function tableRow(page, value) {
 
 export async function submit(page, button) {
     await Promise.all([page.waitForNavigation(), button.click()]);
+}
+
+export function runWorker(once = false) {
+    execFileSync('bash', [join(__dirname, 'work.sh'), ...(once ? ['--once'] : [])], { encoding: 'utf8', timeout: 30_000 });
+}
+
+export async function submitBatch(page, button) {
+    await submit(page, button);
+    runWorker();
+}
+
+export function databaseRows(sql) {
+    const tables = JSON.parse(readFileSync(join(__dirname, '.data/tables.json'), 'utf8'));
+    sql = sql.replace(/\{(translations|settings)\}/g, (_, table) => `"${tables[table].replaceAll('"', '""')}"`);
+    return JSON.parse(execFileSync('php', ['-r', '$db = new PDO("sqlite:".$argv[1]); echo json_encode($db->query($argv[2])->fetchAll(PDO::FETCH_ASSOC), JSON_THROW_ON_ERROR);',
+        join(__dirname, '.data/e2e.sqlite'), sql], { encoding: 'utf8' }));
 }
 
 export async function changeSetting(page, name, enabled) {

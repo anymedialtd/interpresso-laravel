@@ -1,4 +1,6 @@
-import { test, expect, ADMIN, TRANSLATOR, login, openTranslations, tableRow, submit, changeSetting } from './helpers.js';
+import { test, expect, submitBatch, ADMIN, TRANSLATOR, login, openTranslations, tableRow, submit, changeSetting } from './helpers.js';
+
+test.use({ queueConnection: 'database' });
 
 const keys = ['welcome', 'checkout', 'profile', 'vendor_notice', 'vendor_pending', 'vendor_ready'];
 async function expectRows(page, expected) {
@@ -84,11 +86,11 @@ test('Restore replaces the draft with the previous value after reload', async ({
 
 test('Approve all for a language applies to every row and reports a second no-op', async ({ page }) => {
     const approve = page.getByRole('button', { name: 'Approve (en) Translations', exact: true });
-    await submit(page, approve);
+    await submitBatch(page, approve);
     await page.reload();
     await expect(page.locator('tbody').getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
     await expect(page.locator('tbody').getByRole('button', { name: 'Remove translation request', exact: true })).toHaveCount(0);
-    await submit(page, approve);
+    await submitBatch(page, approve);
     await expect(page.getByText('Nothing approved.', { exact: true })).toBeVisible();
 });
 
@@ -141,7 +143,7 @@ test.describe('example languages and auto-translation', () => {
         const modal = page.getByRole('dialog');
         await expect(modal.getByRole('button', { name: 'Translate with OPEN AI', exact: true })).toBeVisible();
         await modal.getByRole('textbox').fill('Updated root text');
-        await submit(page, modal.getByRole('button', { name: 'Update & auto-translate others (OPEN AI)', exact: true }));
+        await submitBatch(page, modal.getByRole('button', { name: 'Update & auto-translate others (OPEN AI)', exact: true }));
         await page.reload();
         await expect(tableRow(page, 'welcome').getByRole('cell', { name: 'Updated root text', exact: true })).toBeVisible();
         await openTranslations(page, 'German');

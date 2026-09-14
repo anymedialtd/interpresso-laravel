@@ -1,16 +1,16 @@
 # CLI Commands
 
-This reference matches the nine commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
+This reference matches the ten commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
 
 ## Execution and Settings
 
-All eight working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
+The working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
 
 `interpresso.process_lock_ttl` defaults to 900 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
 
 The local guard queries `jobs` for `interpresso.queue_name` (default `languageProcessor`) and `job_batches` for `interpresso.batch_name` (default `languageBatch`) on the default database connection. Keep that connection consistent with the application's queue/batch setup. Unreachable or non-success peer responses are ignored during the busy check.
 
-Administrator result notifications and pending reminders are queued. With an asynchronous queue connection, run a worker for the package queue:
+Import, missing-translation, approval and export commands execute their own translation work synchronously in the CLI process, including under `QUEUE_CONNECTION=sync`. The HTTP queue refusal never blocks commands. With sync their notifications also run in the CLI process; with an asynchronous connection, administrator result notifications and pending reminders are queued. With an asynchronous queue connection, run a worker for the package queue:
 
 ```bash
 php artisan queue:work --queue=languageProcessor
@@ -20,7 +20,7 @@ New installations use `db_loader=true`. Normal export and developer download pas
 
 DB-loader web rendering requires the database; the database-error file-loader fallback only applies during console loader registration under `runningInConsole()`, not later lookups. `CACHE_DRIVER` must not be `database` in DB mode; the same applies to `CACHE_STORE` when used by the host application. Use a non-database cache shared appropriately by web processes, workers, and participating hosts.
 
-The signatures below list all command-specific arguments/options. `interpresso:export-translations` has a value-taking `--force=` option, and `interpresso:unlock` has a boolean `--force` switch. The other seven commands have none.
+The signatures below list all command-specific arguments/options. `interpresso:export-translations` has a value-taking `--force=` option, and `interpresso:unlock` has a boolean `--force` switch. Export also accepts `--language=` and `--only-models`. Approval accepts `--translator=` and `--language=`. The other commands have no command-specific options.
 
 ## interpresso:import-languages
 
@@ -77,26 +77,34 @@ Use it after adding languages or importing root-language keys. **Count-check lim
 php artisan interpresso:find-missing-translations
 ```
 
+## interpresso:approve-translations
+
+Signature:
+
+```text
+interpresso:approve-translations {--translator=} {--language=}
+```
+
+Synchronously approves all unapproved translations, or only those in `--language=en`. `--translator=ID` is required and must identify an existing administrator translator; approvals are attributed to that ID. Invalid attribution or an unknown language exits with status 1 without writes. The command uses the shared process lease, refreshes it between languages, invalidates translation caches through the existing approval service, and sends administrator result notifications. It works under `QUEUE_CONNECTION=sync` without a worker. Review translations before invoking it.
+
+```bash
+php artisan interpresso:approve-translations --translator=1
+php artisan interpresso:approve-translations --translator=1 --language=en
+```
+
 ## interpresso:export-translations
 
 Signature:
 
 ```text
-interpresso:export-translations {--force=}
+interpresso:export-translations {--force=} {--language=} {--only-models}
 ```
 
-Exports approved rows with `updated_translation=false`. By default, only rows with `exported=false` are exported. The option takes a value and is cast to boolean:
+Exports approved, not-updated translations. Ordinarily it only exports rows marked not exported. `--force` is a value-taking option, cast to boolean: use `--force=1` to include already exported rows; omitting it or using `--force=0` retains the ordinary behavior. Force does not bypass approval or the running-job guard.
 
-- Omit `--force`, or use `--force=0`, for ordinary export.
-- Use `--force=1` to include rows already marked exported.
+In file mode it exports PHP/JSON and model content. In DB-loader mode it passes model-only export and skips files. `--only-models` also restricts export to model rows in file mode. `--language=en` restricts both the candidate count and execution to that language; an unknown code fails without exporting anything. It runs synchronously and queues administrator result notifications; it does not trigger peer exports. Counts describe translation rows, not files.
 
-Force does not bypass approval, the Updated flag, or the running-job guard. It is not a standalone boolean switch.
-
-In file mode, exports write eligible PHP/JSON entries under `lang/` and eligible model values into the application's model JSON columns. Existing file entries are merged. PHP dotted keys are written as nested arrays, removing matching legacy literal dotted keys; JSON keys remain literal. Rows are marked exported after successful writes. Malformed existing JSON and failed JSON encoding raise export errors rather than silently truncating content.
-
-In DB mode, export is model-only. The initial eligibility/count query still includes PHP/JSON rows, so a candidate count is not a count of written files. The command reports results and queues administrator notifications. It does not request exports on other hosts; UI export batches perform that propagation when multi-host is enabled.
-
-Use ordinary export after approval. Use force in file mode when approved files were replaced or need rewriting, or to re-export approved model content in either mode.
+Use it for regular publication or, in file mode, a forced rewrite of files whose database rows are already marked exported.
 
 ```bash
 php artisan interpresso:export-translations
