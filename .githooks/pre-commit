@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# Runs the full gate before a commit lands, in the same spirit as the
+# berwert-facility hook: PHPStan, the test suite, then the browser suite, and
+# finally a production build so the committed assets always match the sources.
+#
+# Install: composer hooks:install   (or: git config core.hooksPath .githooks)
+# Skip once, deliberately: SKIP_E2E=1 git commit ...   /   git commit --no-verify
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+step() { printf '\033[36m==> pre-commit: %s\033[0m\n' "$1"; }
+
+# --- cheap correctness checks first, so an obvious mistake fails in a second ---
+step "staged file checks"
+STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACM -- '*.php' || true)
+if [ -n "$STAGED_PHP" ]; then
+    while IFS= read -r file; do
+        [ -f "$file" ] || continue
+        php -l "$file" >/dev/null
+    done <<< "$STAGED_PHP"
+fi
+
+# The UI is vanilla now. Reintroducing the framework silently would undo it.
+if git diff --cached -- src resources routes \
+    | grep -qE '^\+.*(wire:|@livewireS|x-data=|@entangle|window\.Modal|alpinejs)'; then
+    echo "pre-commit: reintroduces Livewire/Alpine/Flowbite JS - the UI is vanilla" >&2
+    exit 1
+fi
+
+# The CSP has no unsafe-inline, so inline script/style/handlers are broken pages.
+STAGED_VIEWS=$(git diff --cached --name-only --diff-filter=ACM -- 'resources/views/*.blade.php' || true)
+if [ -n "$STAGED_VIEWS" ]; then
+    while IFS= read -r file; do
+        [ -f "$file" ] || continue
+        if grep -q '<script' "$file" && ! grep -q '<script[^>]*src=' "$file"; then
+            echo "pre-commit: inline <script> violates the CSP: $file" >&2; exit 1
+        fi
+        if grep -qE '\sstyle="' "$file"; then
+            echo "pre-commit: inline style attribute violates the CSP: $file" >&2; exit 1
+        fi
+        if grep -qiE '\son(click|change|submit|input|load)=' "$file"; then
+            echo "pre-commit: inline event handler violates the CSP: $file" >&2; exit 1
+        fi
+    done <<< "$STAGED_VIEWS"
+fi
+
+if git diff --cached -- src resources routes database \
+    | grep -qE '^\+\s*(dd\(|dump\(|var_dump\(|ray\(|console\.log\()'; then
+    echo "pre-commit: debug statement left in the diff" >&2
+    exit 1
+fi
+
+step "PHPStan"
+if [ -x vendor/bin/phpstan ]; then vendor/bin/phpstan analyse --no-progress; else phpstan analyse --no-progress; fi
+
+step "PHPUnit"
+vendor/bin/phpunit
+
+step "Playwright"
+if [ "${SKIP_E2E:-0}" = "1" ]; then
+    echo "  skipped via SKIP_E2E=1"
+elif [ ! -d node_modules ]; then
+    echo "  skipped: node_modules missing - run npm install" >&2
+else
+    # playwright.config.js starts tests/e2e/serve.sh itself and reuses a running one.
+    npx playwright test
+fi
+
+# --- build last, so the committed assets always match the committed sources ---
+step "building assets"
+if [ -d node_modules ]; then
+    npm run production
+    git add public/css/app.css public/js/app.js
+else
+    echo "  skipped: node_modules missing" >&2
+fi
+
+echo "pre-commit: all checks passed"

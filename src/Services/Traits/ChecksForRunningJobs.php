@@ -1,0 +1,101 @@
+<?php
+
+namespace AnyMedia\Interpresso\Services\Traits;
+
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use AnyMedia\Interpresso\Services\Toast;
+use AnyMedia\Interpresso\Models\Setting;
+
+trait ChecksForRunningJobs
+{
+
+    /** Checks if another job is running
+     * @return bool
+     */
+    protected function anotherJobIsRunning(bool $fromCommandLine = false): bool
+    {
+        if (DB::table('jobs')
+            ->where('queue', config('interpresso.queue_name'))
+            ->exists() || DB::table('job_batches')->where('name', config('interpresso.batch_name'))
+            ->whereNull('cancelled_at')
+            ->whereNull('finished_at')
+            ->exists()) {
+            $this->jobIsRunningMessage($fromCommandLine);
+            return true;
+        }
+
+        if (!Setting::multiHostEnabled()) {
+            $this->jobIsRunningMessage($fromCommandLine, false);
+            return false;
+        }
+
+        $hosts = array_filter(array_map('trim', explode(',', Setting::getDomains() ?? '')));
+
+        if($hosts) {
+            $hosts = array_diff($hosts, [request()->getSchemeAndHttpHost()]);
+            $path = route('interpresso.api.jobs-running', [], false);
+            $responses = Http::pool(function (Pool $pool) use ($hosts, $path) {
+                $poolArray = [];
+                foreach($hosts as $host) {
+                   $poolArray[] = $pool->post($host . $path, ['api_key' => config('interpresso.api_shared_api_key')]);
+                }
+                return $poolArray;
+            });
+            foreach($responses as $response) {
+                // Ignore unreachable/misconfigured hosts so local jobs are not blocked.
+                if(!$response instanceof Response || !$response->ok()) {
+                    continue;
+                }
+
+                try{
+                    if((bool) $response->json('process_running', false)) {
+                        $this->jobIsRunningMessage($fromCommandLine);
+                        return true;
+                    }
+                } catch(\Exception $e) {
+                    $this->jobIsRunningMessage($fromCommandLine);
+                    return true;
+                }
+            }
+        }
+
+        $this->jobIsRunningMessage($fromCommandLine, false);
+        return false;
+    }
+
+    protected function jobIsRunningMessage(bool $fromCommandLine, bool $isRunning = true): void
+    {
+        if($fromCommandLine) {
+            if($isRunning) {
+                $this->sendCommandInfo('Another Process is running.');
+            }
+        } else {
+            if ($isRunning) {
+                Toast::flash(
+                    __('interpresso::global.import.processing_no_action'),
+                    'WARNING'
+                );
+            } else {
+                Toast::flash(
+                    __('interpresso::global.import.start_message'),
+                    'SUCCESS',
+                    6000
+                );
+            }
+        }
+
+    }
+
+    private function sendCommandInfo(string $message): void
+    {
+        if(method_exists($this, 'info')) {
+            /** @var callable(string):void $info */
+            $info = [$this, 'info'];
+            $info($message);
+        }
+    }
+
+}

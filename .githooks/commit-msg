@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Conventional Commits, matching this repository's history.
+set -uo pipefail
+subject=$(head -n1 "$1")
+
+# Ignore merges, reverts and fixup commits.
+case "$subject" in
+    Merge*|Revert*|fixup!*|squash!*) exit 0 ;;
+esac
+
+if ! printf '%s' "$subject" | grep -qE '^(feat|fix|chore|docs|test|refactor|perf|style|build|ci|security)(\([a-z0-9 _-]+\))?!?: .{1,}'; then
+    printf '\033[31mCommit message must follow Conventional Commits.\033[0m\n'
+    printf '  e.g. fix(auth): scope row actions to the translator'\''s language\n'
+    printf '  types: feat fix chore docs test refactor perf style build ci security\n'
+    printf '  got: %s\n' "$subject"
+    exit 1
+fi

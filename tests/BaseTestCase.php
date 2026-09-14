@@ -1,0 +1,179 @@
+<?php
+
+namespace AnyMedia\Interpresso\Tests;
+
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
+use Orchestra\Testbench\TestCase;
+use AnyMedia\Interpresso\InterpressoServiceProvider;
+use AnyMedia\Interpresso\Tests\Traits\CreateLanguages;
+use AnyMedia\Interpresso\Tests\Traits\CreateUsers;
+
+class BaseTestCase extends TestCase
+{
+    use CreateUsers, CreateLanguages;
+
+    /**
+     * Automatically enables package discoveries.
+     *
+     * @var bool
+     */
+    protected $enablesPackageDiscoveries = true;
+
+    /** @return list<string> */
+    public function ignorePackageDiscoveriesFrom(): array
+    {
+        return ['livewire/livewire', 'danharrin/livewire-rate-limiting'];
+    }
+
+    /**
+     * Setup the test environment.
+     */
+    public function setUp(): void
+    {
+        parent::setUp();
+        Auth::shouldUse(config('interpresso.translator_guard'));
+        $this->withFactories(__DIR__ . '/../database/factories');
+        $this->restoreTempDataFolder();
+        $this->copyTestData();
+    }
+
+    /**
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        try {
+            $this->restoreTempDataFolder();
+        } finally {
+            parent::tearDown();
+        }
+    }
+
+    /**
+     * Get package providers.
+     *
+     * @param \Illuminate\Foundation\Application $app
+     *
+     * @return array<int, class-string<\Illuminate\Support\ServiceProvider>>
+     */
+    protected function getPackageProviders($app)
+    {
+        return [
+            InterpressoServiceProvider::class
+        ];
+    }
+
+    /**
+     * Define environment setup.
+     *
+     * @param \Illuminate\Foundation\Application $app
+     * @return void
+     */
+    protected function defineEnvironment($app)
+    {
+        // Setup default database to use sqlite :memory:
+        $app['config']->set('database.default', 'testbench');
+        $app['config']->set('database.connections.testbench', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $app['config']->set('queue.default', 'sync');
+        $app['config']->set('queue.batching.database', 'testbench');
+        $app['config']->set('queue.failed.database', 'testbench');
+        $app['config']->set('interpresso.enabled', true);
+        $app['config']->set('interpresso.db_connection', 'testbench');
+    }
+
+    /**
+     * @param $app
+     * @return void
+     */
+    protected function usesMySqlConnection($app)
+    {
+        $app->config->set('database.default', 'mysql');
+    }
+
+    /**
+     * @param $app
+     * @return void
+     */
+    protected function usesSqliteConnection($app)
+    {
+        $app->config->set('database.default', 'sqlite');
+    }
+
+    /**
+     * @return string
+     */
+    protected function getDataPath(): string
+    {
+        return __DIR__ . '/data/lang';
+    }
+
+    /**
+     * @return string
+     */
+    protected function getTempDataPath(): string
+    {
+        return App::langPath();
+    }
+
+    protected function restoreTempDataFolder(): void
+    {
+        $path = $this->getTempDataPath();
+        $this->rrmdir($path);
+        mkdir($path);
+    }
+
+    protected function copyTestData(): void
+    {
+        File::copyDirectory($this->getDataPath(), $this->getTempDataPath());
+
+    }
+
+    /**
+     * @param $dir
+     * @return void
+     */
+    private function rrmdir($dir) {
+        if (is_dir($dir)) {
+            $objects = scandir($dir);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    if (is_dir($dir . DIRECTORY_SEPARATOR . $object) && !is_link($dir . "/" . $object))
+                        $this->rrmdir($dir . DIRECTORY_SEPARATOR . $object);
+                    else
+                        unlink($dir . DIRECTORY_SEPARATOR . $object);
+                }
+            }
+            rmdir($dir);
+        }
+    }
+
+    /**
+     * @param $dir
+     * @param $results
+     * @return array|mixed
+     */
+    function countTranslationsInFiles($dir, &$results = array())
+    {
+        $files = scandir($dir);
+
+        foreach ($files as $key => $value) {
+            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
+            if (!is_dir($path)) {
+                $results[] = $path;
+            } else if ($value != "." && $value != "..") {
+                getDirContents($path, $results);
+                $results[] = $path;
+            }
+        }
+
+        return $results;
+    }
+
+
+}

@@ -1,0 +1,11 @@
+includes:
+    - ./vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 10
+    checkModelProperties: false
+    paths:
+        - src
+    parallel:
+        maximumNumberOfProcesses: 4
+    tmpDir: build/phpstan

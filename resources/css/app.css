@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+    themes: light --default, dark --prefersdark;
+}
+@plugin "@tailwindcss/typography";
+@custom-variant dark {
+    &:where(.dark, .dark *) { @slot; }
+    @media (prefers-color-scheme: dark) {
+        &:where(:root:not([data-theme]), :root:not([data-theme]) *) { @slot; }
+    }
+}
+@source "../views/**/*.blade.php";
+@source "../js/**/*.js";
+
+/* Existing toggle handlers own visibility, including dropdown-open containers. */
+[hidden] { display: none !important; }
+
+button[aria-busy="true"]::before {
+    content: '';
+    display: inline-block;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-right: 0.5rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: interpresso-spin 1s linear infinite;
+}
+@keyframes interpresso-spin { to { transform: rotate(360deg); } }

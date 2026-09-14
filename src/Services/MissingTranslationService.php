@@ -1,0 +1,67 @@
+<?php
+
+namespace AnyMedia\Interpresso\Services;
+
+use Illuminate\Bus\Batch;
+use Illuminate\Database\Eloquent\Collection;
+use AnyMedia\Interpresso\Jobs\FindMissingTranslationsByLanguage;
+use AnyMedia\Interpresso\Models\Language;
+use AnyMedia\Interpresso\Services\Traits\CanCreateTranslation;
+
+class MissingTranslationService
+{
+    use CanCreateTranslation;
+
+    /**
+     * @var Collection<int, Language>
+     */
+    protected Collection $languages;
+
+    /**
+     * @var int
+     */
+    protected int $translationsFound = 0;
+
+    /**
+     * @var null|Batch
+     */
+    protected null|Batch $batch = null;
+
+    /**
+     * @param null|Batch $batch
+     * @return int
+     */
+    /**
+     * @param Batch|null $batch
+     * @param Language|null $singleLanguage - Pass this parameter if you want only run through a single language
+     * @return int
+     * @throws \AnyMedia\Interpresso\Exceptions\MassCreateTranslationsException
+     */
+    public function findMissingTranslations(null|Batch $batch = null, Language|null $singleLanguage = null): int
+    {
+        if ($batch) {
+            $this->batch = $batch;
+        }
+        $this->languages = Language::all();
+
+        /** @var Language|null $language */
+        $language = $this->languages->firstWhere('code', config('app.locale') ?? 'en') ?? $this->languages->first();
+        if (!$language) {
+            return 0;
+        }
+
+        if($singleLanguage) {
+           $this->languages = $this->languages->filter(fn(Language $filteredLanguage) => $singleLanguage->id === $filteredLanguage->id);
+        }
+
+        if ($this->batch) {
+            /** @var list<int> $languageIds Language model primary keys. */
+            $languageIds = $this->languages->pluck('id')->toArray();
+            $this->batch->add(new FindMissingTranslationsByLanguage($languageIds, $language->id));
+        } else {
+            $this->findMissingTranslationsByLanguage($this->languages, $language);
+        }
+
+        return $this->translationsFound;
+    }
+}
