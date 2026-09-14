@@ -66,7 +66,11 @@ trait ChecksForRunningJobs
                         }
                         $owner = $response->json('process_owner');
                         $startedAt = $response->json('process_started_at');
-                        $details = is_string($owner) ? $owner . ' (started ' . (is_string($startedAt) ? $startedAt : 'unknown') . ')' : null;
+                        $details = is_string($owner) ? $lock->description([
+                            'owner' => $owner,
+                            'started_at' => is_string($startedAt) ? $startedAt : null,
+                            'expires_at' => null,
+                        ]) : null;
                         $this->jobIsRunningMessage($fromCommandLine, details: $details);
                         return true;
                     }

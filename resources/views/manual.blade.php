@@ -4,15 +4,15 @@
         <header class="card bg-base-100 shadow-sm overflow-hidden">
             <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-2xl"></div>
             <div class="card-body relative">
-                <p class="badge badge-primary badge-outline">Documentation</p>
+                <p class="badge badge-primary badge-outline">{{ __('interpresso::global.manual.documentation') }}</p>
                 <h1 class="card-title mt-2 text-3xl">{{ __('interpresso::navbar.manual') }}</h1>
                 <p class="mt-3 max-w-3xl text-sm text-base-content/70">
-                    Operational guide for package users. Use the quick links to jump directly to the sections you need.
+                    {{ __('interpresso::global.manual.intro') }}
                 </p>
                 <div class="card-actions mt-5">
-                    <a href="#languages" class="btn btn-primary btn-outline btn-sm">Languages</a>
-                    <a href="#translators" class="btn btn-primary btn-outline btn-sm">Translators</a>
-                    <a href="#settings" class="btn btn-primary btn-outline btn-sm">Settings</a>
+                    <a href="#languages" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.languages') }}</a>
+                    <a href="#translators" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.translators') }}</a>
+                    <a href="#settings" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.settings') }}</a>
                 </div>
             </div>
         </header>
@@ -20,7 +20,7 @@
         <div class="mt-6 grid gap-6 xl:grid-cols-12">
             <aside class="xl:col-span-3">
                 <div class="card card-body bg-base-100 p-4 shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto">
-                    <h2 class="menu-title px-0">Sections</h2>
+                    <h2 class="menu-title px-0">{{ __('interpresso::global.manual.sections') }}</h2>
                     @if(count($manualSections))
                         <ul class="menu mt-3 w-full p-0 shrink-0 flex-nowrap">
                             @foreach($manualSections as $section)
@@ -35,7 +35,7 @@
                             @endforeach
                         </ul>
                     @else
-                        <p class="mt-3 text-sm text-base-content/70">No sections available.</p>
+                        <p class="mt-3 text-sm text-base-content/70">{{ __('interpresso::global.manual.empty') }}</p>
                     @endif
                 </div>
             </aside>

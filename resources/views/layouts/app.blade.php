@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" @if($colorTheme) data-theme="{{ $colorTheme }}" @endif @class(['dark' => $colorTheme === 'dark']) data-theme-cookie-path="{{ $themeCookiePath }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-ui-messages="{{ json_encode(__('interpresso::global.browser')) }}" @if($colorTheme) data-theme="{{ $colorTheme }}" @endif @class(['dark' => $colorTheme === 'dark']) data-theme-cookie-path="{{ $themeCookiePath }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,9 +15,9 @@
     <div class="container flex flex-wrap gap-4 items-center justify-between mx-auto">
         <a href="{{ route('interpresso.languages') }}" class="btn btn-ghost text-xl">{{ __('interpresso::navbar.brand') }}</a>
         <span class="badge badge-ghost">v {{ \AnyMedia\Interpresso\InterpressoServiceProvider::$version }}</span>
-        <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm" aria-label="Toggle dark mode">Light / Dark</button>
+        <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm" aria-label="{{ __('interpresso::navbar.toggle_theme') }}">{{ __('interpresso::navbar.theme') }}</button>
         @if(auth(config('interpresso.translator_guard'))->check())
-            <button type="button" data-toggle="mobile-menu" aria-controls="mobile-menu" aria-expanded="false" class="btn btn-ghost md:hidden">Open main menu</button>
+            <button type="button" data-toggle="mobile-menu" aria-controls="mobile-menu" aria-expanded="false" class="btn btn-ghost md:hidden">{{ __('interpresso::navbar.open_menu') }}</button>
             <div id="mobile-menu" class="hidden md:flex w-full md:w-auto">
                 <ul class="menu md:menu-horizontal w-full md:w-auto">
                     <li><a href="{{ route('interpresso.languages') }}">{{ __('interpresso::navbar.languages') }}</a></li>

@@ -1,3 +1,4 @@
+import { uiText } from './i18n.js';
 import { json } from './http';
 import { toast } from './toast';
 import { visiblePoll } from './polling';
@@ -26,7 +27,7 @@ export function initNotifications() {
             time.textContent = notification.date_time;
             const button = document.createElement('button');
             button.type = 'button';
-            button.textContent = 'Mark as read';
+            button.textContent = uiText('mark_read', 'Mark as read');
             button.className = 'btn btn-ghost btn-sm text-primary self-start';
             button.addEventListener('click', () => read(notification.read_url, button));
             item.append(message, time, button);
@@ -57,7 +58,7 @@ export function initNotifications() {
         } catch (error) {
             if (error.name === 'AbortError') return;
             if ([401, 403, 419].includes(error.status)) poller.stop();
-            if (!warned) toast('Notifications could not be refreshed.', 'WARNING');
+            if (!warned) toast(uiText('notifications_failed', 'Notifications could not be refreshed.'), 'WARNING');
             warned = true;
         }
     }, 5000);

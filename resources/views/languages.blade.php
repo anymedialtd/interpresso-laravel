@@ -7,7 +7,7 @@
 @if($showForm)
     <form method="POST" action="{{ route('interpresso.languages.store') }}" class="card card-body bg-base-100 shadow-md mb-4">
         @csrf
-        <label for="language" class="sr-only">Language</label>
+        <label for="language" class="sr-only">{{ __('interpresso::global.language') }}</label>
         <select id="language" name="language" required class="max-w-sm mb-4 select select-bordered w-full">
             <option value="">{{ __('interpresso::languages.form.select.placeholder') }}</option>
             @foreach($languages as $option)<option value="{{ $option['code'] }}" @selected(old('language') === $option['code'])>{{ $option['name'] }}</option>@endforeach

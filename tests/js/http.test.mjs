@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../../resources/js/modules/http.js', import.meta.url), 'utf8');
+let source = await readFile(new URL('../../resources/js/modules/http.js', import.meta.url), 'utf8');
+const i18n = await readFile(new URL('../../resources/js/modules/i18n.js', import.meta.url), 'utf8');
+source = source.replace("'./i18n.js'", `'data:text/javascript;base64,${Buffer.from(i18n).toString('base64')}'`);
 const { json } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 for (const body of ['', '{broken', '<html>Error</html>']) {

@@ -8,7 +8,13 @@ npm run production
 npx playwright test
 ```
 
-The suite currently declares 120 tests in 18 spec files. The complete [form/control inventory and verification report](../../docs/FORM_CONTROL_AUDIT.md) maps every form, field, dropdown, modal, action form and navigation control to its route and coverage.
+Use `npx playwright test --list` for the current test inventory. The complete [form/control inventory and verification report](../../docs/FORM_CONTROL_AUDIT.md) maps every form, field, dropdown, modal, action form and navigation control to its route and coverage.
+
+`localization.spec.js` sets `app.locale=de` through the test-only `appLocale` fixture
+and checks the four working screens, editor and translated manual. The fixture
+applies to reused servers too and resets before each test. Catalogue key and
+placeholder parity, localized manual delivery, English fallback and stable
+section anchors are also covered by PHPUnit.
 
 ## Required health fixture
 

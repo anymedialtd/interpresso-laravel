@@ -1,3 +1,4 @@
+import { uiText } from './i18n.js';
 const TYPES = ['SUCCESS', 'DELETED', 'INFO', 'WARNING'];
 const colors = {
     SUCCESS: 'alert-success',
@@ -18,8 +19,8 @@ export function toast(message, type = 'SUCCESS', duration = 3000) {
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'btn btn-ghost btn-sm';
-    close.textContent = 'Close';
-    close.setAttribute('aria-label', 'Dismiss notification');
+    close.textContent = uiText('close', 'Close');
+    close.setAttribute('aria-label', uiText('dismiss_notification', 'Dismiss notification'));
     const timer = setTimeout(() => element.remove(), Number.isFinite(duration) ? Math.max(0, duration) : 3000);
     close.addEventListener('click', () => { clearTimeout(timer); element.remove(); });
     element.append(text, close);

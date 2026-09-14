@@ -224,7 +224,7 @@ class TranslationController extends BaseController
             try {
                 $translation->update($service->approvedTranslationUpdateArray($this->authUser()->id));
                 $service->resetTranslationCache($translation);
-                Toast::flash('Translation approved.');
+                Toast::flash(__('interpresso::translations.approved_success'));
             } finally {
                 $lock->release();
             }
@@ -248,7 +248,7 @@ class TranslationController extends BaseController
         if (($lock = $this->acquireProcessLock('change translation request')) !== null) {
             try {
                 $translation->update(['needs_translation' => $requested, 'approved' => !$requested]);
-                Toast::flash($requested ? 'Translation requested.' : 'Translation request removed.');
+                Toast::flash(__('interpresso::translations.' . ($requested ? 'requested_success' : 'request_removed_success')));
             } finally {
                 $lock->release();
             }
@@ -268,7 +268,7 @@ class TranslationController extends BaseController
                         'previous_updated_by' => null, 'previous_approved_by' => null,
                         'approved' => true, 'exported' => true, 'updated_translation' => false,
                     ]);
-                    Toast::flash('Translation restored.');
+                    Toast::flash(__('interpresso::translations.restored_success'));
                 }
             } finally {
                 $lock->release();

@@ -70,7 +70,7 @@ class UpdateSettingFieldRequest extends FormRequest
     /** @return array<string, string> */
     public function messages(): array
     {
-        return ['domains.required_if' => 'Domains are required when multi-host coordination is enabled.'];
+        return ['domains.required_if' => __('interpresso::settings.domains_required')];
     }
 
     /**

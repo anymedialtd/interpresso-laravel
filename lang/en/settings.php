@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'saved' => 'Setting saved.',
+    'domains_required' => 'Domains are required when multi-host coordination is enabled.',
+    'autosave_info' => 'Each field saves independently when changed. Use its Save button if JavaScript is disabled.',
     'main_domain' => [
         'label' => 'Main Domain',
         'info' => 'The main domain where the translations process is executed. This value has to be changed in the language config file.',

@@ -26,9 +26,10 @@ class TranslationLoader extends FileLoader
             return $lines;
         }
         $lines = Translation::getCachedTranslations($locale, $group, $namespace);
-        if ($group === 'validation' && ($namespace === null || $namespace === '*')) {
+        if ($namespace === 'interpresso' || ($group === 'validation' && ($namespace === null || $namespace === '*'))) {
             // Fresh DB installs have no imported validation messages. Keep
-            // Laravel/host messages available, with reviewed DB overrides.
+            // Laravel/host messages and the package UI available, with reviewed
+            // DB overrides, even when vendor imports have not run yet.
             return array_replace_recursive(parent::load($locale, $group, $namespace), Arr::undot($lines));
         }
         return $lines;

@@ -6,10 +6,10 @@
             <form method="GET" action="{{ url()->current() }}" data-state-filter>
                 @include('interpresso::partials.query-fields', ['except' => [$key]])
                 @if($state !== false)<input type="hidden" name="{{ $key }}" value="{{ $state === null ? 'true' : 'false' }}">@endif
-                <button type="submit" aria-label="{{ __('interpresso::translations.filter.' . $key) }}" title="{{ $state === null ? 'All' : ($state ? 'Matching' : 'Non-matching') }}"
+                <button type="submit" aria-label="{{ __('interpresso::translations.filter.' . $key) }}" title="{{ __('interpresso::filter.' . ($state === null ? 'all' : ($state ? 'matching' : 'non_matching'))) }}"
                         class="btn {{ $state === null ? 'btn-neutral' : ($state ? 'btn-success' : 'btn-error') }} w-full">
                     {{ __('interpresso::translations.filter.' . $key) }}
-                    <span class="sr-only">{{ $state === null ? 'All' : ($state ? 'Matching' : 'Non-matching') }}</span>
+                    <span class="sr-only">{{ __('interpresso::filter.' . ($state === null ? 'all' : ($state ? 'matching' : 'non_matching'))) }}</span>
                 </button>
             </form>
         @endforeach

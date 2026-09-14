@@ -133,7 +133,10 @@ class ProcessLock
     public function description(?array $current = null): string
     {
         $current ??= $this->current();
-        return ($current['owner'] ?? 'unknown owner') . ' (started ' . ($current['started_at'] ?? 'unknown') . ')';
+        return __('interpresso::global.process_description', [
+            'owner' => $current['owner'] ?? __('interpresso::global.unknown_owner'),
+            'started' => $current['started_at'] ?? __('interpresso::global.unknown'),
+        ]);
     }
 
     private function query(): Builder

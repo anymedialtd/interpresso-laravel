@@ -21,7 +21,7 @@ class AuthTranslator
 
         if($request->wantsJson()) {
             if (!auth($guard)->check()) {
-                return response()->json(['message' => 'User is not authenticated!'], 403);
+                return response()->json(['message' => __('interpresso::global.unauthenticated')], 403);
             }
         } else {
             if (!auth($guard)->check()) {

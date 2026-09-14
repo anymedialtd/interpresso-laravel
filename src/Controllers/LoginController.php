@@ -29,13 +29,13 @@ class LoginController extends Controller
         if (RateLimiter::tooManyAttempts($key, 10)) {
             $seconds = RateLimiter::availableIn($key);
             throw ValidationException::withMessages([
-                'email' => "Slow down! Please wait another {$seconds} seconds to log in.",
+                'email' => __('interpresso::login.throttled', ['seconds' => $seconds]),
             ]);
         }
         RateLimiter::hit($key, 60);
 
         if (!Auth::guard($this->guard())->attempt($request->safe()->only(['email', 'password']), $request->boolean('remember'))) {
-            throw ValidationException::withMessages(['email' => 'Email or password are invalid.']);
+            throw ValidationException::withMessages(['email' => __('interpresso::login.invalid_credentials')]);
         }
 
         RateLimiter::clear($key);

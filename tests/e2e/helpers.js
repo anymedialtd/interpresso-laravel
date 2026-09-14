@@ -10,8 +10,10 @@ export { expect };
 export const test = base.extend({
     fixtureScenario: ['base', { option: true }],
     queueConnection: ['sync', { option: true }],
-    database: [async ({ fixtureScenario, queueConnection }, use) => {
+    appLocale: ['en', { option: true }],
+    database: [async ({ fixtureScenario, queueConnection, appLocale }, use) => {
         resetDatabase(fixtureScenario);
+        writeFileSync(join(__dirname, '.data/locale'), appLocale);
         if (queueConnection === 'database') writeFileSync(join(__dirname, '.data/queue-connection'), 'database');
         await use();
     }, { auto: true }],

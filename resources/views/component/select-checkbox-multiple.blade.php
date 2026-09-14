@@ -8,7 +8,7 @@
                 {{ $option }}
             </label>
         @endforeach
-        @if($apply ?? false)<button type="submit" class="btn btn-ghost btn-sm text-primary">Apply</button>@endif
+        @if($apply ?? false)<button type="submit" class="btn btn-ghost btn-sm text-primary">{{ __('interpresso::global.apply') }}</button>@endif
     </div>
     @include('interpresso::component.error', ['field' => $name])
     @include('interpresso::component.error', ['field' => $name . '.*'])

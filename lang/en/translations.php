@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'approved_success' => 'Translation approved.',
+    'requested_success' => 'Translation requested.',
+    'request_removed_success' => 'Translation request removed.',
+    'restored_success' => 'Translation restored.',
+    'close_modal' => 'Close modal',
+    'translating' => 'Translating...',
+    'use_suggestion' => 'Use suggestion',
     'button' => [
         'export_all_translations' => 'Export All Languages',
         'export_all_translations_models' => 'Export All Translated Models',

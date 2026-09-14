@@ -17,9 +17,17 @@ class ManualController extends BaseController
     private function loadManual(): void
     {
         $path = dirname(__DIR__, 2) . '/docs/APPLICATION_MANUAL.md';
+        $locale = app()->getLocale();
+        // A locale must remain a filename component, never a relative path.
+        if (preg_match('/\A[a-zA-Z0-9_-]+\z/', $locale) === 1) {
+            $localizedPath = dirname(__DIR__, 2) . '/docs/APPLICATION_MANUAL.' . $locale . '.md';
+            if (File::exists($localizedPath)) {
+                $path = $localizedPath;
+            }
+        }
 
         if (!File::exists($path)) {
-            $this->manualHtml = Str::markdown('# Application Manual' . PHP_EOL . PHP_EOL . 'Manual file not found.');
+            $this->manualHtml = e(__('interpresso::global.manual.not_found'));
             return;
         }
 
@@ -41,13 +49,20 @@ class ManualController extends BaseController
         $updatedHtml = preg_replace_callback('/<h([23])\b[^>]*>(.*?)<\/h\1>/is', function (array $matches) use (&$sections, &$usedIds): string {
             $level = (int) $matches[1];
             $innerHtml = trim($matches[2]);
+            // Explicit Markdown heading IDs keep bookmarks and quick links
+            // stable when a translated heading has a different title.
+            $explicitId = null;
+            if (preg_match('/\s+\{#([a-z0-9-]+)\}$/', $innerHtml, $anchor) === 1) {
+                $explicitId = $anchor[1];
+                $innerHtml = substr($innerHtml, 0, -strlen($anchor[0]));
+            }
             $title = trim(preg_replace('/\s+/', ' ', strip_tags($innerHtml)) ?? '');
 
             if ($title === '') {
                 return $matches[0];
             }
 
-            $baseId = Str::slug($title);
+            $baseId = $explicitId ?? Str::slug($title);
             if ($baseId === '') {
                 $baseId = 'section';
             }

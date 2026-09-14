@@ -13,6 +13,7 @@ export SESSION_DRIVER=file
 export QUEUE_CONNECTION=sync
 mkdir -p tests/e2e/.data
 rm -f tests/e2e/.data/queue-connection
+rm -f tests/e2e/.data/locale
 rm -rf tests/e2e/.data/cache tests/e2e/.data/sessions tests/e2e/.data/lang
 mkdir -p tests/e2e/.data/cache tests/e2e/.data/sessions tests/e2e/.data/lang/en tests/e2e/.data/lang/de
 : > "$DB_DATABASE"

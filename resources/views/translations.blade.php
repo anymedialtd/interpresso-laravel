@@ -12,7 +12,7 @@
     <div class="flex flex-wrap gap-4 p-4 items-center">
         @include('interpresso::component.search')
         @foreach([
-            'types' => [__('interpresso::translations.filter.type'), ['php' => 'PHP', 'json' => 'JSON', 'model' => 'Model']],
+            'types' => [__('interpresso::translations.filter.type'), __('interpresso::translations.filter.type_selection')],
             'updatedBy' => [__('interpresso::translations.filter.updated_by'), $translators],
             'approvedBy' => [__('interpresso::translations.filter.approved_by'), $translators],
         ] as $name => [$label, $options])
@@ -41,26 +41,26 @@
     <div class="modal-box w-11/12 max-w-5xl">
         <header class="flex justify-between items-center pb-4 mb-4 border-b border-base-300">
             <h2 id="translation-key" class="font-bold"></h2>
-            <button type="button" data-modal-close aria-label="Close modal" class="btn btn-ghost btn-sm">Close modal</button>
+            <button type="button" data-modal-close aria-label="{{ __('interpresso::translations.close_modal') }}" class="btn btn-ghost btn-sm">{{ __('interpresso::translations.close_modal') }}</button>
         </header>
-        <p data-modal-loading role="status" hidden><span aria-hidden="true" class="loading loading-spinner loading-sm"></span> Loading...</p>
+        <p data-modal-loading role="status" hidden><span aria-hidden="true" class="loading loading-spinner loading-sm"></span> {{ __('interpresso::global.loading') }}</p>
         <p data-modal-error role="alert" hidden class="alert alert-error mb-3"></p>
         <div data-modal-content hidden>
             <p data-example class="mb-4 whitespace-pre-wrap text-base-content/70"></p>
             <form method="POST" data-translation-form>
                 @csrf
-                <label for="translatedValue" class="sr-only">Translation</label>
+                <label for="translatedValue" class="sr-only">{{ __('interpresso::global.browser.translation') }}</label>
                 <textarea id="translatedValue" name="translatedValue" rows="6" class="textarea textarea-bordered w-full mb-4"></textarea>
                 <div class="modal-action flex-wrap gap-3">
                     <button type="submit" data-save class="btn btn-primary">{{ __('interpresso::translations.action_update') }}</button>
                     <button type="submit" data-update-all hidden class="btn btn-primary">{{ __('interpresso::translations.action_update_and_translate_others') }}</button>
                     <button type="button" data-suggest hidden class="btn btn-primary">{{ __('interpresso::translations.action_update_with_open_ai') }}</button>
-                    <span data-suggestion-loading hidden role="status">Translating...</span>
+                    <span data-suggestion-loading hidden role="status">{{ __('interpresso::translations.translating') }}</span>
                 </div>
             </form>
             <div data-suggestion-preview hidden class="card card-body bg-base-200 p-4 my-4">
                 <p data-suggestion-text class="whitespace-pre-wrap"></p>
-                <button type="button" data-use-suggestion class="btn btn-ghost btn-sm text-primary">Use suggestion</button>
+                <button type="button" data-use-suggestion class="btn btn-ghost btn-sm text-primary">{{ __('interpresso::translations.use_suggestion') }}</button>
             </div>
             <div data-examples class="flex flex-wrap gap-4 mt-4"></div>
         </div>

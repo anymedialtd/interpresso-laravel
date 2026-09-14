@@ -1,3 +1,4 @@
+import { uiText } from './i18n.js';
 import { json } from './http';
 import { toast } from './toast';
 
@@ -50,7 +51,7 @@ export function initModal() {
             record = null;
             revision = 0;
             setBusy(false);
-            modal.querySelector('#translation-key').textContent = 'Translation';
+            modal.querySelector('#translation-key').textContent = uiText('translation', 'Translation');
             modal.showModal();
             try {
                 const url = new URL(button.dataset.translationUrl, location.href);
@@ -60,7 +61,7 @@ export function initModal() {
                 record = data;
                 modal.querySelector('#translation-key').textContent = data.key;
                 textarea.value = data.value;
-                modal.querySelector('[data-example]').textContent = data.example?.value || 'No translation example is available.';
+                modal.querySelector('[data-example]').textContent = data.example?.value || uiText('no_example', 'No translation example is available.');
                 form.action = withFilters(data.save_url);
                 updateAll.formAction = withFilters(data.update_all_url);
                 updateAll.hidden = !data.can_update_all;
@@ -101,7 +102,7 @@ export function initModal() {
                 body: { example_language: record.example.language_id },
             });
             if (current !== generation) return;
-            if (typeof data?.value !== 'string') throw new Error('The server returned an invalid suggestion. Please try again.');
+            if (typeof data?.value !== 'string') throw new Error(uiText('invalid_suggestion', 'The server returned an invalid suggestion. Please try again.'));
             suggestion = data.value;
             if (revision === 0 && version === revision && textarea.value === before) {
                 textarea.value = suggestion;
@@ -109,7 +110,7 @@ export function initModal() {
             } else {
                 modal.querySelector('[data-suggestion-text]').textContent = suggestion;
                 preview.hidden = false;
-                toast('Your draft was kept. Use the suggestion when ready.', 'INFO', 5000);
+                toast(uiText('draft_kept', 'Your draft was kept. Use the suggestion when ready.'), 'INFO', 5000);
             }
         } catch (exception) {
             if (current === generation) reportError(exception);

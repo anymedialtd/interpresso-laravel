@@ -2,6 +2,8 @@
 
 This is the manual displayed inside the translation panel at the `interpresso.manual` route, normally `/translator/manual`. Use the generated section index to navigate. On wide screens, the index stays beside the article and scrolls within the viewport so every section remains reachable. The four working screens are Languages, Translations, Translators, and Settings.
 
+The interface follows the host application's `app.locale`. German (`de`), French (`fr`), Spanish (`es`), and Italian (`it`) are included. The manual loads `docs/APPLICATION_MANUAL.{locale}.md` for the active locale and falls back to `docs/APPLICATION_MANUAL.md` when no translation exists. The English original remains authoritative. Translated headings retain the original section anchors.
+
 ## Getting Started
 
 ### Install, publish, and migrate
@@ -222,6 +224,8 @@ The table also contains internal `process_running`, `process_owner`, `process_st
 Laravel's translation loader reads cached database entries for the requested locale/group/namespace. For approved rows it uses `value`; for unapproved rows it uses `old_value`. It does not use the draft value until approval. A newly generated unapproved row can have no old value, so the DB loader supplies no approved text for it. Requesting translation on an approved row does not create an old value, which can also leave it without usable text while unapproved. Vendor namespaces use files when `import_vendor` is off.
 
 Validation messages retain Laravel's built-in defaults and the host application's `validation.php` overrides even before translations are imported. Database validation entries override those defaults using the same approved/old-value rules. Other application translation groups retain DB-only delivery.
+
+The package's own interface also keeps its bundled or published text available when vendor import is enabled; reviewed database entries can override it.
 
 DB loading itself writes nothing to `lang/`. With the normal DB workflow, import once, edit, and approve; there are no exported application translation files for a deployment to clobber. **`interpresso:export-translations-deployment` is unnecessary for DB-loader delivery.** Application translations remain in the database across filesystem deployments. Model translations still need export to their JSON columns in the application database.
 

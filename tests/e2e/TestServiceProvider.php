@@ -17,6 +17,7 @@ class TestServiceProvider extends ServiceProvider
         $directory = __DIR__ . '/.data';
         $this->app->useLangPath($directory . '/lang');
         config([
+            'app.locale' => is_file($directory . '/locale') ? trim(file_get_contents($directory . '/locale')) : 'en',
             'cache.default' => 'file',
             'cache.stores.file.path' => $directory . '/cache',
             'session.files' => $directory . '/sessions',

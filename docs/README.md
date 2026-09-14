@@ -12,6 +12,13 @@
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Agent Guide](../AGENTS.md)
 
+The interface follows the host application's `app.locale` and includes English,
+German, French, Spanish and Italian. The in-app manual uses the matching
+`APPLICATION_MANUAL.{locale}.md`, falling back to the English original when absent.
+The English original remains authoritative. Translations:
+[Deutsch](APPLICATION_MANUAL.de.md), [Français](APPLICATION_MANUAL.fr.md),
+[Español](APPLICATION_MANUAL.es.md), [Italiano](APPLICATION_MANUAL.it.md).
+
 ## Quick Start
 
 1. Install the package and migrate:

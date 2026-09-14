@@ -1,3 +1,4 @@
+import { uiText } from './i18n.js';
 import { json } from './http';
 import { toast } from './toast';
 import { visiblePoll } from './polling';
@@ -20,7 +21,7 @@ export function initBatchProgress() {
                 poller.stop();
                 id = null;
                 panel.hidden = true;
-                if (tracked) toast(batch.cancelled ? 'Batch cancelled.' : (batch.failed ? 'Batch finished with failures. Check notifications.' : 'Batch finished. Reload to see changes.'), batch.failed ? 'WARNING' : 'INFO', 6000);
+                if (tracked) toast(batch.cancelled ? uiText('batch_cancelled', 'Batch cancelled.') : (batch.failed ? uiText('batch_failed', 'Batch finished with failures. Check notifications.') : uiText('batch_finished', 'Batch finished. Reload to see changes.')), batch.failed ? 'WARNING' : 'INFO', 6000);
                 document.dispatchEvent(new CustomEvent('interpresso:batch-finished'));
             } else {
                 id = batch.id;
@@ -29,7 +30,7 @@ export function initBatchProgress() {
         } catch (error) {
             if (error.name === 'AbortError') return;
             if ([401, 403, 419].includes(error.status)) poller.stop();
-            if (!warned) toast('Batch progress could not be refreshed.', 'WARNING');
+            if (!warned) toast(uiText('batch_refresh_failed', 'Batch progress could not be refreshed.'), 'WARNING');
             warned = true;
         }
     }, 1000);

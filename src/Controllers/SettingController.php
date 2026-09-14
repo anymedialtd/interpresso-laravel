@@ -22,7 +22,7 @@ class SettingController extends BaseController
         $setting->setAttribute($field, $request->validated($field));
         $setting->save();
         Setting::getFreshCached();
-        Toast::flash('Setting saved.');
+        Toast::flash(__('interpresso::settings.saved'));
         return redirect()->route('interpresso.settings');
     }
 }
