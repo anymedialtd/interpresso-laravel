@@ -3,16 +3,16 @@
     <div class="py-6 sm:py-8">
         <header class="card bg-base-100 shadow-sm overflow-hidden">
             <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-2xl"></div>
-            <div class="card-body relative">
+            <div class="card-body relative p-4 sm:p-6 gap-4">
                 <p class="badge badge-primary badge-outline">{{ __('interpresso::global.manual.documentation') }}</p>
-                <h1 class="card-title mt-2 text-3xl">{{ __('interpresso::navbar.manual') }}</h1>
-                <p class="mt-3 max-w-3xl text-sm text-base-content/70">
+                <h1 class="card-title text-3xl">{{ __('interpresso::navbar.manual') }}</h1>
+                <p class="max-w-3xl text-sm text-base-content/70">
                     {{ __('interpresso::global.manual.intro') }}
                 </p>
-                <div class="card-actions mt-5">
-                    <a href="#languages" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.languages') }}</a>
-                    <a href="#translators" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.translators') }}</a>
-                    <a href="#settings" class="btn btn-primary btn-outline btn-sm">{{ __('interpresso::navbar.settings') }}</a>
+                <div class="card-actions gap-2">
+                    <a href="#languages" class="btn btn-outline btn-sm">{{ __('interpresso::navbar.languages') }}</a>
+                    <a href="#translators" class="btn btn-outline btn-sm">{{ __('interpresso::navbar.translators') }}</a>
+                    <a href="#settings" class="btn btn-outline btn-sm">{{ __('interpresso::navbar.settings') }}</a>
                 </div>
             </div>
         </header>
@@ -40,7 +40,7 @@
                 </div>
             </aside>
 
-            <article class="card card-body min-w-0 xl:col-span-9 bg-base-100 p-5 shadow-sm sm:p-6">
+            <article class="card card-body min-w-0 xl:col-span-9 bg-base-100 p-4 shadow-sm sm:p-6">
                 <div class="prose max-w-none dark:prose-invert
                             prose-headings:font-bold prose-headings:tracking-tight
                             prose-h2:mt-10 prose-h2:border-t prose-h2:border-base-300 prose-h2:pt-6 prose-h2:text-2xl prose-h2:scroll-mt-24

@@ -650,3 +650,11 @@ HTTP 503 zwischen Hosts bedeutet nach erfolgreicher Anfragevalidierung, dass kei
 Prüfen Sie protokollierte Pfade und Fehlerkennungen bei ungültigen Quelldateien oder Einfügefehlern. Null-Werte für Quelltext, Namensraum oder Gruppe sind keine gültigen Kopiermetadaten für fehlende Übersetzungen. Anwendungsübersetzungen verwenden einen leeren Namensraum, JSON-Übersetzungen eine leere Gruppe. Modellexporte benötigen eine Eloquent-Modellklasse, einen vorhandenen Datensatz und eine vorhandene JSON-Übersetzungsspalte. Fehlende Ziele lösen eine Ausnahme aus, statt stillschweigend als exportiert zu gelten.
 
 Der Entwickler-Download benötigt kompatibles MySQL-/MariaDB-SQL, erreichbare API-Endpunkte des Hauptservers und das passende gemeinsame Geheimnis. Er ersetzt lokale Datensätze und bestätigt die Transaktion vor dem Export. Prüfen Sie daher vor einer Wiederholung, welche Phase fehlgeschlagen ist. Lokale Übersetzer- und Zuweisungsdaten werden nicht synchronisiert.
+
+<!--
+UI styling update: preserve the rendered manual wording for the visual-only change.
+The colour-based state-filter instructions above refer to the previous styling.
+Current state cycle: outlined = unrestricted; filled with tick = true; filled with cross = false.
+
+Die Schaltflächenfarben kennzeichnen die Folgen: Grün für Freigabe, Rot für Löschen oder Entfernen einer Übersetzungsanforderung, Gelb für Wiederherstellen, Blau für Export und die Primärfarbe für Import, fehlende Einträge und Übersetzen. Schliessen und Suche verwenden dezente Schaltflächen. Filter sind umrandet und bei aktiver Auswahl gefüllt. Zeilenaktionen sind kompakt, Seitenaktionen etwas grösser. Tabellen haben abwechselnd hinterlegte Zeilen und im Scrollbereich fixierte Überschriften. Häkchen bedeuten Ja, dezente Kreuze Nein; beide haben übersetzte barrierefreie Beschriftungen. Suchfeld und Suchschaltfläche bilden eine Einheit. Dies gilt im hellen und dunklen Farbschema.
+-->

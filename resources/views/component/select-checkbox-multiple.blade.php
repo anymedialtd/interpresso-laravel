@@ -1,6 +1,6 @@
 <div class="dropdown dropdown-open">
     <button type="button" data-toggle="{{ $id }}-options" aria-controls="{{ $id }}-options" aria-expanded="false"
-            class="btn btn-primary">{{ $text }}</button>
+            class="btn btn-sm {{ count($selected ?? []) ? 'btn-neutral' : 'btn-outline' }}">{{ $text }}</button>
     <div id="{{ $id }}-options" hidden class="dropdown-content menu bg-base-100 rounded-box shadow-lg z-30 w-56 p-3 max-h-72 overflow-y-auto flex-nowrap">
         @foreach($options as $key => $option)
             <label class="flex items-center gap-2 p-2 text-sm cursor-pointer rounded-field hover:bg-base-200">

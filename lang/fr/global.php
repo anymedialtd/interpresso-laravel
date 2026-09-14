@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'boolean_true' => 'Oui',
+    'boolean_false' => 'Non',
     'locale_name' => 'Français',
     'interface_language' => "Langue de l'interface",
     'default_locale' => 'Navigateur / par défaut',

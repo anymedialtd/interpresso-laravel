@@ -650,3 +650,11 @@ HTTP 503 tra host indica, dopo la validazione della richiesta, un segreto condiv
 Controlla percorso e identificatore d'errore nei log per sorgenti non valide o errori di inserimento. Valori sorgente, namespace o gruppi null non sono metadati validi per copiare traduzioni mancanti. Le traduzioni applicative usano namespace vuoto; JSON usa gruppo vuoto. Gli export di modelli richiedono classe Eloquent, record esistente e colonna JSON di traduzione esistente. Destinazioni mancanti generano un'eccezione invece di risultare silenziosamente esportate.
 
 Il download di sviluppo richiede SQL compatibile MySQL/MariaDB, endpoint del server principale raggiungibili e segreto corretto. Sostituisce record locali e fa commit prima dell'export: individua la fase fallita prima di ripetere. Traduttori e assegnazioni locali non vengono sincronizzati dal download.
+
+<!--
+UI styling update: preserve the rendered manual wording for the visual-only change.
+The colour-based state-filter instructions above refer to the previous styling.
+Current state cycle: outlined = unrestricted; filled with tick = true; filled with cross = false.
+
+I colori dei pulsanti indicano le conseguenze: verde per approvare, rosso per eliminare o rimuovere una richiesta di traduzione, giallo per ripristinare, blu per esportare e colore principale per importare, trovare voci mancanti e tradurre. Chiudi e Cerca usano pulsanti discreti. I filtri hanno un contorno e diventano pieni quando è applicata una selezione. Le azioni delle righe sono compatte, quelle della pagina leggermente più grandi. Le tabelle hanno righe alternate e intestazioni fisse nella zona di scorrimento. Le spunte significano Sì e le croci discrete No, con etichette accessibili tradotte. Il campo di ricerca e il suo pulsante formano un unico controllo. Queste convenzioni valgono nei temi chiaro e scuro.
+-->

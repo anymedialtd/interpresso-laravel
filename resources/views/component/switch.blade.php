@@ -1,4 +1,4 @@
-<div id="{{ $id ?? $name }}" class="mb-4">
+<div id="{{ $id ?? $name }}" class="space-y-2">
     <input type="hidden" name="{{ $name }}" value="0">
     <label class="inline-flex items-center gap-3 cursor-pointer">
         <input type="checkbox" name="{{ $name }}" value="1" class="toggle toggle-primary shrink-0" @checked(old($name, $checked ?? false))>

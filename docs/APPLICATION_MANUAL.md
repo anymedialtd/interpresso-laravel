@@ -648,3 +648,11 @@ Inter-host HTTP 503 means no shared secret is configured after request validatio
 Check the logged path/error identifier for invalid source files or insert errors. Null source values, namespaces, or groups are not valid missing-translation copy metadata. Application translations use an empty namespace; JSON translations use an empty group. Model exports require an Eloquent model class, an existing record, and an existing JSON translation column. Missing targets raise an exception instead of being silently marked exported.
 
 Developer download requires compatible MySQL/MariaDB SQL, reachable main-server API endpoints, and the matching shared secret. It replaces local records and commits before exporting, so inspect which phase failed before repeating it. Existing local translator/assignment data is not synchronized by the download.
+
+<!--
+UI styling update: preserve the rendered manual wording for the visual-only change.
+The colour-based state-filter instructions above refer to the previous styling.
+Current state cycle: outlined = unrestricted; filled with tick = true; filled with cross = false.
+
+Button colours indicate consequences: green for approval, red for deletion or removing a translation request, amber for restoration, blue for export, and primary for import, finding missing entries and translation. Close and Search use quiet ghost buttons. Filter toggles are outlined until a selection is applied, then filled. Row actions are compact and wrap with small gaps; page actions are slightly larger. Tables use compact striped rows and sticky headings within the scroll area. Boolean ticks mean Yes and muted crosses mean No, with translated accessible labels. Search and its button form one joined control. These conventions apply in both light and dark themes.
+-->

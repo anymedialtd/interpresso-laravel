@@ -28,7 +28,7 @@
             @include('interpresso::component.error', ['field' => 'locale', 'errorBag' => 'interfaceLocale'])
         </form>
         @if(auth(config('interpresso.translator_guard'))->check())
-            <button type="button" data-toggle="mobile-menu" aria-controls="mobile-menu" aria-expanded="false" class="btn btn-ghost md:hidden">{{ __('interpresso::navbar.open_menu') }}</button>
+            <button type="button" data-toggle="mobile-menu" aria-controls="mobile-menu" aria-expanded="false" class="btn btn-ghost btn-sm md:hidden">{{ __('interpresso::navbar.open_menu') }}</button>
             <div id="mobile-menu" class="hidden md:flex w-full md:w-auto">
                 <ul class="menu md:menu-horizontal w-full md:w-auto">
                     <li><a href="{{ route('interpresso.languages') }}">{{ __('interpresso::navbar.languages') }}</a></li>

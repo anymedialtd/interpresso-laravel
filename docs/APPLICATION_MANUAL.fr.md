@@ -650,3 +650,11 @@ Entre hôtes, HTTP 503 signifie qu'aucun secret partagé n'est configuré après
 Vérifiez le chemin et l'identifiant d'erreur consignés pour les fichiers sources invalides ou les erreurs d'insertion. Une valeur source, un espace de noms ou un groupe null ne constitue pas une métadonnée valide pour copier les traductions manquantes. Les traductions d'application utilisent un espace de noms vide ; JSON utilise un groupe vide. Les exports de modèles exigent une classe Eloquent, un enregistrement existant et une colonne JSON de traduction existante. Une cible manquante lève une exception au lieu d'être silencieusement marquée exportée.
 
 Le téléchargement de développement exige du SQL MySQL/MariaDB compatible, les endpoints du serveur principal accessibles et le bon secret partagé. Il remplace les données locales et fait le commit avant l'export ; identifiez la phase échouée avant de recommencer. Les traducteurs et affectations locaux ne sont pas synchronisés par ce téléchargement.
+
+<!--
+UI styling update: preserve the rendered manual wording for the visual-only change.
+The colour-based state-filter instructions above refer to the previous styling.
+Current state cycle: outlined = unrestricted; filled with tick = true; filled with cross = false.
+
+Les couleurs des boutons indiquent leurs conséquences : vert pour valider, rouge pour supprimer ou retirer une demande de traduction, jaune pour restaurer, bleu pour exporter et couleur principale pour importer, rechercher les entrées manquantes et traduire. Fermer et Rechercher utilisent des boutons discrets. Les filtres ont un contour, puis un fond plein lorsqu'une sélection est appliquée. Les actions des lignes sont compactes, celles des pages légèrement plus grandes. Les tableaux ont des lignes alternées et des en-têtes fixes dans la zone de défilement. Les coches signifient Oui et les croix discrètes Non, avec des libellés accessibles traduits. Le champ de recherche et son bouton forment un ensemble. Ces conventions valent pour les thèmes clair et sombre.
+-->

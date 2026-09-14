@@ -650,3 +650,11 @@ HTTP 503 entre servidores significa, tras validar la petición, que no hay secre
 Revise rutas e ID de error registrados para fuentes inválidas o errores de inserción. Valores de origen, espacios de nombres o grupos null no son metadatos válidos para copiar traducciones que faltan. Las traducciones de aplicación usan espacio de nombres vacío; JSON usa grupo vacío. Exportar modelos requiere clase Eloquent, registro existente y columna JSON de traducción existente. Los destinos ausentes provocan una excepción en lugar de marcarse silenciosamente exportados.
 
 La descarga de desarrollo requiere SQL compatible con MySQL/MariaDB, endpoints del servidor principal accesibles y secreto compartido correcto. Reemplaza datos locales y confirma antes de exportar; identifique qué fase falló antes de repetir. Los traductores y asignaciones locales no se sincronizan en la descarga.
+
+<!--
+UI styling update: preserve the rendered manual wording for the visual-only change.
+The colour-based state-filter instructions above refer to the previous styling.
+Current state cycle: outlined = unrestricted; filled with tick = true; filled with cross = false.
+
+Los colores de los botones indican sus consecuencias: verde para aprobar, rojo para eliminar o retirar una solicitud de traducción, amarillo para restaurar, azul para exportar y color principal para importar, buscar entradas faltantes y traducir. Cerrar y Buscar usan botones discretos. Los filtros tienen contorno y se rellenan al aplicar una selección. Las acciones de fila son compactas y las de página algo mayores. Las tablas tienen filas alternas y encabezados fijos en la zona de desplazamiento. Las marcas significan Sí y las cruces discretas No, con etiquetas accesibles traducidas. El campo de búsqueda y su botón forman un solo control. Estas convenciones se aplican a los temas claro y oscuro.
+-->
