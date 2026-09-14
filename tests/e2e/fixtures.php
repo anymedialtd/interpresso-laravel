@@ -13,6 +13,9 @@ use AnyMedia\Interpresso\Notifications\FlashMessage;
 use AnyMedia\Interpresso\Tests\e2e\Article;
 
 // Expose the configured table names for direct browser-test database assertions.
+// .data is gitignored, so it does not exist on a fresh checkout or in CI - and the
+// PHPUnit suite requires this file too, via InteractsWithBackgroundProcesses.
+File::ensureDirectoryExists(__DIR__ . '/.data');
 File::put(__DIR__ . '/.data/tables.json', json_encode([
     'translations' => (new Translation())->getTable(),
     'settings' => (new Setting())->getTable(),

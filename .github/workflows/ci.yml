@@ -21,17 +21,17 @@ jobs:
           - php: '8.2'
             laravel: '13'
     services:
-      mysql:
-        image: mysql:8.4.6
+      mariadb:
+        image: mariadb:11.4
         env:
-          MYSQL_DATABASE: interpresso_ci
-          MYSQL_USER: interpresso
-          MYSQL_PASSWORD: interpresso
-          MYSQL_ROOT_PASSWORD: ci-root-password
+          MARIADB_DATABASE: interpresso_ci
+          MARIADB_USER: interpresso
+          MARIADB_PASSWORD: interpresso
+          MARIADB_ROOT_PASSWORD: ci-root-password
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -66,7 +66,7 @@ jobs:
       - run: composer audit
       - run: ./vendor/bin/phpstan analyse --no-progress
       - run: ./vendor/bin/phpunit
-      - name: MySQL migrations up, rollback, reapply and developer download
+      - name: MariaDB migrations up, rollback, reapply and developer download
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: '3306'

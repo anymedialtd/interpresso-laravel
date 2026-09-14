@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php" colors="true">
   <testsuites>
-    <testsuite name="MySQL integration"><directory suffix="Test.php">tests/MySql</directory></testsuite>
+    <testsuite name="MariaDB integration"><directory suffix="Test.php">tests/MySql</directory></testsuite>
   </testsuites>
   <php>
     <env name="DB_DATABASE" value="interpresso_ci"/>
