@@ -148,3 +148,9 @@ Resolution:
 ## Bulk action says no background queue is configured
 
 The configured queue connection uses `sync`, `null`, `deferred`, missing settings, or an unsafe failover path. Interpresso refuses bulk HTTP work before changing data. Run the exact Artisan command in the toast, or configure a database/Redis connection and a worker on `languageProcessor`. Without Supervisor, the recommended shared-hosting setup is `QUEUE_CONNECTION=database` plus `interpresso.schedule.queue_worker` and [one every-minute scheduler cron line](CONFIGURATION.md#cron-without-supervisor); the UI buttons then work normally. Rebuild cached configuration after changes. A deferring driver alone does not prove a worker or cron is running. The peer force-export API returns HTTP 503 with the same CLI and scheduler guidance. See [supported execution modes and cron](CONFIGURATION.md#supported-execution-modes).
+
+## A new translator cannot log in or a password email is missing
+
+New UI-created accounts have no password. The recipient must follow the invitation's **Set password** link first. Working SMTP is mandatory for onboarding. Check Laravel's mail settings, sender, delivery logs and spam folder; use **Resend invitation** on the account edit page if the password is still unset. A resend invalidates the older invitation. An email change also invalidates outstanding links.
+
+Public reset requests always show the same acknowledgement. Check the persistent reset queue connection and run its worker, normally `php artisan queue:work database --queue=languageProcessor`. SMTP failures are retried by the worker; inspect Laravel's failed jobs and logs after repeated failures. A sync/deferred/null reset connection is refused. Check the primary application URL if the emailed link points at the wrong site. Expired or used links require a new request; request/reset/resend attempts are limited to five per IP per minute.

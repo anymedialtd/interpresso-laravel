@@ -15,13 +15,10 @@ return [
         ],
     ],
     'form' => [
-        'update_password_title' => 'Cambia password per :email',
         'label' => [
             'first_name' => 'Nome',
             'last_name' => 'Cognome',
             'email' => 'Email',
-            'password' => 'Password',
-            'password_confirmation' => 'Conferma password',
             'phone' => 'Telefono',
             'admin' => 'Diritti di amministratore',
             'languages' => 'Lingue',
@@ -31,7 +28,6 @@ return [
             'edit' => 'Modifica',
             'close' => 'Chiudi',
             'update' => 'Aggiorna',
-            'update_password' => 'Cambia password',
             'pending_translations_notification' => 'Invia promemoria per le traduzioni in sospeso',
         ],
         'info' => [
@@ -42,5 +38,4 @@ return [
     'created' => 'Traduttore creato',
     'updated' => 'Traduttore aggiornato',
     'deleted' => 'Traduttore eliminato',
-    'password_updated_success' => 'Password per :email cambiata.',
 ];

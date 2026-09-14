@@ -304,3 +304,26 @@ Each Settings control submits and validates only its own field using an ordinary
 POST and redirect. JavaScript submits on change; a Save button works without it.
 Enabling multi-host validates against saved Domains, so save Domains first.
 Invalid Domains do not prevent changes to unrelated settings.
+
+## Translator password reset and invitations
+
+Passwords are set only by account holders following emailed links. Translator profile forms accept no password. The package uses the `interpresso_translators` password broker and provider, independently of the host application's users and default broker.
+
+- `INTERPRESSO_TABLE_PASSWORD_RESET_TOKENS`: defaults to `interpresso_password_reset_tokens`. Set before migrating. This table uses `interpresso.db_connection`; tokens are hashed at rest.
+- `INTERPRESSO_PASSWORD_RESET_EXPIRE`: positive expiry in minutes, default `60`, shared by invitations and resets. A link is single use. Resending an invitation replaces its previous token.
+- `interpresso.password_reset.throttle`: seconds between reset emails for a translator, default `60`.
+- `INTERPRESSO_PASSWORD_RESET_QUEUE_CONNECTION`: defaults to `database`. It must be a persistent asynchronous Laravel queue connection; `sync`, `deferred`, `null`, and failover configurations containing them are refused. Jobs use `interpresso.queue_name`, default `languageProcessor`.
+
+**Working SMTP is a hard requirement for onboarding. Without a delivered invitation, a newly created translator cannot complete a first login.** Configure Laravel's `MAIL_MAILER=smtp`, SMTP credentials and sender, plus an accurate public `APP_URL` / `INTERPRESSO_MAIN_SERVER_DOMAIN` for the links. Invitations send immediately after account creation. On a mail failure the account remains saved; correct the mail configuration and use **Resend invitation** on the edit page while its password is unset.
+
+Public reset requests require a running worker, normally:
+
+```bash
+php artisan queue:work database --queue=languageProcessor
+```
+
+With `QUEUE_CONNECTION=database`, the existing Interpresso worker or scheduled `interpresso:work` can consume that queue too. If another reset connection is configured, run a worker for that connection and the configured package queue. Configure the queue connection's database/table in Laravel's `config/queue.php`; it is independent of the token table's connection. Do not put these jobs on an unserviced queue.
+
+Every valid public request queues the same job before any account lookup. Both existing and unknown addresses get the same status, redirect, and message; SMTP time and per-account cooldowns occur in the worker. Mail failures are retried up to three times, 60 seconds apart, and exhausted jobs use Laravel's failed-job handling. Monitor worker and application errors: a generic public acknowledgement intentionally does not confirm either account existence or delivery. Request submissions, token redemption and invitation resends share five attempts per IP per minute, including unknown addresses. These endpoints use CSRF-protected POST forms.
+
+Deploy the new migration and refresh published views, translations and built assets together. Merge these configuration keys into previously published config files. Existing password hashes remain valid. Update the seeded administrator's placeholder email to one you control, then use **Forgot your password?** to replace its initial password. Reset links are invalidated when an account's email changes or the account is deleted. A rollback drops the package reset-token table and invalidates outstanding links; existing account passwords remain intact.

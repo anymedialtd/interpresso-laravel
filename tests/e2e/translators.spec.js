@@ -3,7 +3,6 @@ import { ADMIN, TRANSLATOR, login, formField, expectNoServerError } from './help
 
 const NEW_TRANSLATOR = {
     email: 'new-translator@example.test',
-    password: 'new-translator-password',
     first_name: 'Jamie',
     last_name: 'Example',
     phone: '+41000000002',
@@ -22,7 +21,6 @@ async function createTranslator(page) {
     for (const [name, value] of Object.entries(NEW_TRANSLATOR)) {
         await formField(form, name).fill(value);
     }
-    await formField(form, 'password_confirmation').fill(NEW_TRANSLATOR.password);
     await expect(form.locator('#admin').getByRole('checkbox')).not.toBeChecked();
     await form.getByRole('button', { name: 'Languages', exact: true }).click();
     await form.getByRole('checkbox', { name: 'English', exact: true }).check();
@@ -138,15 +136,11 @@ test.describe('additional translator forms', () => {
         await page.getByRole('button', { name: 'Create Translator', exact: true }).click();
         const form = page.locator('#createOrUpdateForm');
         for (const [name, value] of Object.entries(NEW_TRANSLATOR)) await formField(form, name).fill(value);
-        await formField(form, 'password_confirmation').fill('different-password');
         await Promise.all([page.waitForNavigation(), form.getByRole('button', { name: 'Create', exact: true }).click()]);
         await expect(form).toBeVisible();
         await expect(form).toContainText('The languages field is required.');
-        await expect(form).toContainText('The password confirmation field must match password.');
         await expect(formField(form, 'email')).toHaveValue(NEW_TRANSLATOR.email);
         await expect(translatorRow(page)).toHaveCount(0);
-        await formField(form, 'password').fill(NEW_TRANSLATOR.password);
-        await formField(form, 'password_confirmation').fill(NEW_TRANSLATOR.password);
         await form.getByRole('button', { name: 'Languages', exact: true }).click();
         await expect(form.getByRole('checkbox', { name: 'English', exact: true })).toBeVisible();
         await form.getByRole('checkbox', { name: 'English', exact: true }).check();
@@ -156,7 +150,7 @@ test.describe('additional translator forms', () => {
         await expect(translatorRow(page)).toBeVisible();
     });
 
-    test('create, edit and password Close links discard changes', async ({ page }) => {
+    test('create and edit Close links discard changes and expose no password controls', async ({ page }) => {
         await page.getByRole('button', { name: 'Create Translator', exact: true }).click();
         await formField(page, 'email').fill(NEW_TRANSLATOR.email);
         await page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -168,34 +162,10 @@ test.describe('additional translator forms', () => {
         await expect(translatorRow(page, TRANSLATOR.email)).toContainText('Regular');
         await expect(translatorRow(page)).toHaveCount(0);
         await translatorRow(page, TRANSLATOR.email).getByRole('link', { name: 'Edit', exact: true }).click();
-        await page.getByRole('button', { name: 'Update Password', exact: true }).click();
-        await formField(page, 'new_password').fill('discarded-password');
-        await page.getByRole('button', { name: 'Close', exact: true }).click();
-        await expect(page.locator('#createOrUpdateForm')).toBeVisible();
+        await expect(page.locator('input[type="password"]')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Update Password', exact: true })).toHaveCount(0);
         await page.getByRole('button', { name: 'Logout', exact: true }).click();
         await login(page, TRANSLATOR);
-    });
-
-    test('password validation recovers and only the replacement password logs in', async ({ page }) => {
-        await translatorRow(page, TRANSLATOR.email).getByRole('link', { name: 'Edit', exact: true }).click();
-        await page.getByRole('button', { name: 'Update Password', exact: true }).click();
-        await formField(page, 'new_password').fill('replacement-password');
-        await formField(page, 'new_password_confirmation').fill('mismatched-password');
-        await Promise.all([page.waitForNavigation(), page.getByRole('button', { name: 'Update Password', exact: true }).click()]);
-        await expect(page.getByText(/new password confirmation.*match new password/i)).toBeVisible();
-        await formField(page, 'new_password').fill('replacement-password');
-        await formField(page, 'new_password_confirmation').fill('replacement-password');
-        await Promise.all([page.waitForNavigation(), page.getByRole('button', { name: 'Update Password', exact: true }).click()]);
-        await expect(page.locator('#createOrUpdateForm')).toBeVisible();
-        await page.reload();
-        await page.getByRole('button', { name: 'Logout', exact: true }).click();
-        await page.locator('#email').fill(TRANSLATOR.email);
-        await page.locator('#password').fill(TRANSLATOR.password);
-        await Promise.all([page.waitForNavigation(), page.getByRole('button', { name: 'Sign in', exact: true }).click()]);
-        await expect(page.getByText('Email or password are invalid.')).toBeVisible();
-        await login(page, { ...TRANSLATOR, password: 'replacement-password' });
-        await page.reload();
-        await expect(page.getByRole('heading', { name: 'Languages', exact: true })).toBeVisible();
     });
 
     test('administrator switch changes permissions after save and language selections can be removed', async ({ page }) => {

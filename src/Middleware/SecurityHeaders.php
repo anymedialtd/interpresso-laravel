@@ -42,6 +42,10 @@ class SecurityHeaders
         $response->headers->set('Content-Security-Policy', $policy);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Referrer-Policy', 'same-origin');
+        if ($request->routeIs('interpresso.password.*')) {
+            $response->headers->set('Referrer-Policy', 'no-referrer');
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=()');
 
         return $response;

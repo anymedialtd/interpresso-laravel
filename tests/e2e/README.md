@@ -70,3 +70,5 @@ expired lease followed by a queued UI batch completed by a CLI worker. It verifi
 warning, refusal to write, and clearing of every lock column after completion.
 
 Bulk success specs select `queueConnection: 'database'` and call `submitBatch()` to execute queued work with a separate CLI worker. The default remains sync; `queue-refusal.spec.js` clicks Import Translations and checks its actionable refusal, unchanged data and absence of any batch.
+
+Password reset tests use real notification rendering and Laravel's array mail transport. The E2E-only provider captures delivered mail in the gitignored `.data/mail.jsonl`; no mailbox HTTP endpoint is exposed. Tests run the database worker before following the actual emailed URL, and `seed.sh` clears the mailbox. Invitation tests verify creation, resend invalidation, recipient password choice and first login. Locale tests verify automatic submission with JavaScript and the visible fallback button without it.

@@ -42,7 +42,7 @@ The default login URL is `/translator/login`. When no translator exists, the mig
 - Password: `aaaaaaaa`
 - First and last name: `admin`
 
-Sign in, open **Translators**, edit the administrator, and use **Update password** immediately. Set a password of at least eight characters and enter the same confirmation. Profile updates alone do not change passwords. Translator ID `1` cannot be deleted through the application, but its profile and password can be edited.
+Sign in, open **Translators**, edit the initial administrator, and replace the placeholder email with an address you control. Log out, choose **Forgot your password?**, and follow the emailed link to replace the default password immediately. Only the account holder can set a password using an emailed link. Translator ID `1` cannot be deleted through the application.
 
 The login form has email, password, and **Remember me** controls. Invalid credentials remain on the login screen; login is limited to ten attempts per IP address per minute and shows the retry delay after that limit. Accounts use the package's `interpresso_translator` session guard. Use **Logout** in the navigation to end the session.
 
@@ -177,19 +177,21 @@ This screen, normally `/translator/translators`, is restricted to administrators
 
 ### Create, edit, assign languages, and delete
 
-Use the create-form button to enter email, phone, first name, last name, password, password confirmation, language assignments, and the Admin switch. Email must be valid and unique; first and last names need at least two characters. Phone is optional; a supplied phone must be unique. Passwords need at least eight characters and matching confirmation.
+Use the create-form button to enter email, phone, first name, last name, language assignments, and the Admin switch. Email must be valid and unique; first and last names need at least two characters. Phone is optional; a supplied phone must be unique. There are no password fields on translator profile forms.
 
 A non-admin requires at least one valid language assignment. Duplicate or nonexistent assignment IDs are rejected. Admin accounts can be saved without assignments and can access all languages. Explicit assignments still determine which language notifications an account receives.
 
-Use the Languages button to close the assignment dropdown after choosing languages, then submit the form. Validation errors appear beside their fields, including language assignments and password confirmations. Rejected forms keep profile values; passwords must be entered again.
+Use the Languages button to close the assignment dropdown after choosing languages, then submit the form. Validation errors appear beside their fields. Rejected forms keep profile values.
 
-**Create** saves a new account. **Edit** opens an existing account; **Update** saves profile, admin status, and the selected assignment list. Saving replaces the existing assignments with that list. **Close** hides the form. Account creation does not send an invitation or password email.
+**Create** saves a new account without a password and immediately sends an invitation email containing a **Set password** link. **Edit** opens an existing account; **Update** saves its profile, admin status, and selected assignments. **Close** hides the form. Until the recipient sets a password, the edit page offers **Resend invitation**; resending invalidates the previous link. If sending fails, the saved account remains available for resending.
 
 Use row **Delete** to remove an account. Translator ID `1` has no Delete control and its delete endpoint rejects the action. Other deletions submit directly without a confirmation dialog.
 
 ### Password changes and pending notifications
 
-While editing an existing translator, **Update password** opens a separate password form. Enter a new password and matching confirmation, then use its update button. **Close** returns to the profile form. This administrative password change does not ask for the current password. There is no self-service password-change or reset screen for non-admins.
+All account holders, including administrators, use **Forgot your password?** on the login page. Enter the translator email and follow the emailed **Reset password** link, then enter a password of 8 to 255 characters and matching confirmation. The public request always shows the same message, whether the email exists or not. Requests, reset submissions, and invitation resends share a limit of five attempts per IP address per minute; reset emails also have a 60-second per-account cooldown. Links expire after 60 minutes by default, are single use, and belong to one translator account. Changing an email address or deleting an account revokes its links. The host application's user accounts are separate.
+
+**Working SMTP is a hard requirement for onboarding. Without delivered invitation email, a new translator cannot complete a first login.** Check spam folders and use **Resend invitation** if needed. Configure Laravel's mail transport and sender. Public reset requests additionally need a persistent queue and a running worker: by default `php artisan queue:work database --queue=languageProcessor`. The worker performs account lookup and mail delivery so SMTP delays cannot reveal account existence. `sync`, `deferred`, and `null` queues are not supported for resets. See [password reset configuration](CONFIGURATION.md#translator-password-reset-and-invitations) for table, expiry, and queue settings.
 
 When `enable_pending_notifications` is enabled, the edit form displays the pending-translation notification button. It checks each explicitly assigned language and queues a notification when that language has rows with `needs_translation=true`. Delivery uses both email and the database notification channel. It does not count all unapproved rows, and an assignment with zero requested translations produces no delivery. Configure the application's mail transport and run the package queue worker. The success toast confirms the request, not email delivery.
 
@@ -412,7 +414,7 @@ The package enables strict browser security headers by default. Its scripts and 
 
 ### Interface language
 
-On any page, including login, choose English, Deutsch, Français, Español, or Italiano in the navbar and press **Change language**. The next page response renders the chosen language immediately and also selects the manual. This form works without JavaScript.
+On any page, including login, choose English, Deutsch, Français, Español, or Italiano in the navbar. Changing the selection immediately submits the form and reloads the page in that language, including the manual. Without JavaScript, the **Change language** button stays visible and submits the same form.
 
 Signed-in changes are saved to the translator's nullable `locale` field and the `interpresso-locale` cookie. Anonymous changes use only the cookie. It lasts one year and follows the package URL prefix, normally `/translator`; it is encrypted, HttpOnly, SameSite=Lax and Secure on HTTPS. The account preference survives logout and a new login, including in another browser.
 

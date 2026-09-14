@@ -100,3 +100,11 @@ Update named routes to `interpresso.*`, commands and schedules to `interpresso:*
 Move customized templates and interface translations to `resources/views/vendor/interpresso` and `lang/vendor/interpresso`. Publish assets with `php artisan vendor:publish --tag=interpresso-public --force` and use `public/vendor/interpresso` asset paths. The other publish tags are `interpresso-config`, `interpresso-migrations`, `interpresso-views` and `interpresso-translations`.
 
 Complete or cancel queued work before switching PHP namespaces; serialized pending jobs and persisted notification model types may otherwise refer to unavailable classes. Migrate stored polymorphic type values to the new namespace when retaining notifications. Clear compiled configuration and views, then restart queue workers. The default cache prefix is `interpresso_cache`, the default translator guard is `interpresso_translator`, and the display preference cookie is `interpresso-color-theme`; translators should sign in again after the upgrade.
+
+## Mail required for translator onboarding
+
+**Working SMTP is now a hard requirement. A newly created translator has no password and cannot complete a first login without receiving the invitation email.** Configure Laravel's mail transport and sender before adding accounts. Creation sends a **Set password** link immediately; the account edit page offers **Resend invitation** until a password is set. Administrator profile forms cannot set passwords.
+
+Set the initial administrator's email to an address you control, then log out and use **Forgot your password?** to replace the seeded password. Password recovery uses a persistent queue, default `database`, with a worker on `languageProcessor`: `php artisan queue:work database --queue=languageProcessor`. All valid recovery requests enqueue the same work, keeping account lookup and SMTP timing outside the public response.
+
+Run the new reset-token migration on the configured package database. Set custom token-table names before migrating and publish updated assets, views and all five language catalogues on upgrades. See [password reset configuration](CONFIGURATION.md#translator-password-reset-and-invitations) for expiry, queue configuration, delivery failures and rollout details.

@@ -101,15 +101,14 @@ Sources: [translators](../resources/views/translators.blade.php), [TranslatorCon
 | --- | --- | --- |
 | Search input, debounced GET and Search submit | `interpresso.translators`; filters and clears accounts | `translators.spec.js`, `pagination.spec.js` |
 | Create Translator GET submit | Opens `?create=1` | `translators.spec.js` |
-| Create form: Email, Phone, First Name, Last Name, Password, Password Confirmation | `interpresso.translators.store`; saves profile; validation retains editable values and recovers | `translators.spec.js` |
+| Create form: Email, Phone, First Name, Last Name | `interpresso.translators.store`; saves profile; validation retains editable values and recovers | `translators.spec.js` |
 | Languages assignment dropdown and every language checkbox | Dropdown must become visible; checked selections are submitted, retained after reload and can be removed | `translators.spec.js` |
 | Is Administrator switch | Saves administrator permission; account can subsequently open Settings without assignments | `translators.spec.js` |
 | Create submit / Close link | Creates persisted account or discards input | `translators.spec.js` |
 | Edit row link | `interpresso.translators.edit`; loads existing values | `translators.spec.js` |
 | Edit form profile fields, Update submit / Close link | `interpresso.translators.update`; profile and assignments persist, or edits are discarded | `translators.spec.js` |
-| Update Password link | Opens `?password=1` | `translators.spec.js` |
-| New Password and confirmation, Update Password submit | `interpresso.translators.password`; mismatch recovers; old password rejected, new password logs in | `translators.spec.js` |
-| Password form Close link | Discards password change and returns to profile editor | `translators.spec.js` |
+| Resend invitation | `interpresso.translators.invite`; emails a replacement set-password link while the password is unset | `password-reset.spec.js` |
+| Forgot your password?, request/reset forms | `interpresso.password.*`; generic acknowledgement, emailed link, validation, token reuse rejection and login with the recipient-chosen password | `password-reset.spec.js` |
 | Send pending translations notification action form | `interpresso.translators.notify`; conditional presence; assigned recipient sees pending count after a new login and reload | `notifications.spec.js` |
 | Delete row action form | `interpresso.translators.delete`; account absent after reload, primary admin retained | `translators.spec.js` |
 | Filter by languages dropdown, checkboxes, Apply GET submit | Matches all selected assignments; combines with search, clears and persists | `translators.spec.js`, `pagination.spec.js` |
@@ -202,3 +201,5 @@ The follow-up investigation addresses the nine reported failures below (the save
 | `git diff --check` | PASS |
 
 The server's direct diagnostic is `Failed to listen on 127.0.0.1:8099 (reason: Operation not permitted)`. No browser pass is claimed. The guard canaries and first-paint checks also still require execution in an environment that permits localhost and Chromium. No installs or commits were made.
+
+Password management no longer uses administrative forms. The earlier password-form validation regressions below describe historical findings; current validation coverage uses the account-holder reset form. Navbar language selection submits on change through the external module, with a visible submit button only when JavaScript is unavailable (`interface-locale.spec.js`).

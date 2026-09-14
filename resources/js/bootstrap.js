@@ -5,8 +5,10 @@ import { initNotifications } from './modules/notifications';
 import { initFilters } from './modules/filters';
 import { initSearch } from './modules/search';
 import { initTheme } from './modules/theme';
+import { initLocale } from './modules/locale';
 
 initTheme();
+initLocale();
 initToasts();
 initFilters();
 initSearch();

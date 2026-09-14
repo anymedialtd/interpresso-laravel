@@ -41,14 +41,12 @@ class TranslatorFormErrorsTest extends BaseTestCase
         $form = route('interpresso.translators', ['create' => 1]);
         $this->from($form)->post(route('interpresso.translators.store'), [
             'email' => 'new@example.test', 'first_name' => 'Jamie', 'last_name' => 'Example',
-            'admin' => '0', 'password' => 'new-password', 'password_confirmation' => 'different-password',
-        ])->assertRedirect($form)->assertSessionHasErrors(['languages', 'password_confirmation']);
+            'admin' => '0',
+        ])->assertRedirect($form)->assertSessionHasErrors(['languages']);
         $response = $this->get($form)->assertOk();
         $document = $this->document($response->getContent());
         $this->assertSame('new@example.test', $document->evaluate('string(//input[@name="email"]/@value)'));
         $this->assertSame('The languages field is required.', trim($document->evaluate('string(//form[@id="createOrUpdateForm"]//div[div[@id="translator-permissions-options"]]/p)')));
-        $this->assertSame('The password confirmation field must match password.', trim($document->evaluate('string(//div[@id="password_confirmation"]/p)')));
-        $this->assertSame('', $document->evaluate('string(//input[@name="password"]/@value)'));
         $this->assertDatabaseCount(config('interpresso.table_translators'), 1);
     }
 
@@ -59,12 +57,15 @@ class TranslatorFormErrorsTest extends BaseTestCase
         $this->useLoader($database);
         $translator = $this->createUser(Language::all());
         $hash = $translator->password;
-        $form = route('interpresso.translators.edit', ['translator' => $translator, 'password' => 1]);
-        $this->from($form)->post(route('interpresso.translators.password', $translator), [
-            'new_password' => 'replacement-password', 'new_password_confirmation' => 'different-password',
-        ])->assertRedirect($form)->assertSessionHasErrors('new_password_confirmation');
+        $token = resolve(\AnyMedia\Interpresso\Services\TranslatorPasswords::class)->broker()->createToken($translator);
+        $form = route('interpresso.password.reset', ['token' => $token, 'email' => $translator->email]);
+        $this->from($form)->post(route('interpresso.password.update'), [
+            'email' => $translator->email, 'token' => $token,
+            'password' => 'replacement-password', 'password_confirmation' => 'different-password',
+        ])->assertRedirect($form)->assertSessionHasErrors('password_confirmation');
         $document = $this->document($this->get($form)->assertOk()->getContent());
-        $this->assertSame('The new password confirmation field must match new password.', trim($document->evaluate('string(//div[@id="new_password_confirmation"]/p)')));
+        $this->assertSame('The password confirmation must match the password.', trim($document->evaluate('string(//input[@id="password_confirmation"]/following-sibling::p[1])')));
+        $this->assertSame('', $document->evaluate('string(//input[@name="password"]/@value)'));
         $this->assertSame($hash, $translator->fresh()->password);
     }
 

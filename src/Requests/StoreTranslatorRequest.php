@@ -3,7 +3,6 @@
 namespace AnyMedia\Interpresso\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
 use Illuminate\Validation\Rules\Exists;
@@ -40,15 +39,13 @@ class StoreTranslatorRequest extends FormRequest
             'locale' => ['nullable', 'string', Rule::in(resolve(InterfaceLocales::class)->codes())],
             'first_name' => 'required|string|min:2',
             'last_name' => 'required|string|min:2',
-            'password' => 'required|string|min:8',
-            'password_confirmation' => 'required|string|same:password',
             'languages' => $this->boolean('admin') ? 'nullable|array' : 'required|array|min:1',
             "languages.*" => ['integer', 'distinct', Rule::exists(Language::class, 'id')],
         ];
     }
 
     /**
-     * Return model attributes with a hashed password; sync languages separately.
+     * Accept profile fields only. The account holder sets a password by email.
      *
      * @return array<string, mixed>
      */
@@ -57,9 +54,6 @@ class StoreTranslatorRequest extends FormRequest
         /** @var array{email: string, phone?: string|null, locale?: string|null, first_name: string, last_name: string, admin?: bool|0|1|'0'|'1'|null} $attributes Validated profile fields. */
         $attributes = $this->safe()->only(['email', 'phone', 'locale', 'first_name', 'last_name', 'admin']);
         $attributes['admin'] = $this->boolean('admin');
-        /** @var string $password Validated by required|string|min:8. */
-        $password = $this->validated('password');
-        $attributes['password'] = Hash::make($password);
 
         return $attributes;
     }

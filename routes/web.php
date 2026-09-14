@@ -7,6 +7,7 @@ use AnyMedia\Interpresso\Controllers\LoginController;
 use AnyMedia\Interpresso\Controllers\LocaleController;
 use AnyMedia\Interpresso\Controllers\ManualController;
 use AnyMedia\Interpresso\Controllers\NotificationController;
+use AnyMedia\Interpresso\Controllers\PasswordResetController;
 use AnyMedia\Interpresso\Controllers\SettingController;
 use AnyMedia\Interpresso\Controllers\TranslationController;
 use AnyMedia\Interpresso\Controllers\TranslatorController;
@@ -14,6 +15,12 @@ use AnyMedia\Interpresso\Controllers\TranslatorController;
 Route::prefix(config('interpresso.prefix'))->middleware(['interpresso.security-headers', config('interpresso.translator_guard')])->group(function (): void {
     Route::get(config('interpresso.login_url'), [LoginController::class, 'index'])->name('interpresso.login');
     Route::post(config('interpresso.login_url'), [LoginController::class, 'login'])->name('interpresso.login.submit');
+    Route::get('forgot-password', [PasswordResetController::class, 'requestForm'])->name('interpresso.password.request');
+    Route::post('forgot-password', [PasswordResetController::class, 'sendLink'])
+        ->middleware(\AnyMedia\Interpresso\Middleware\ThrottlePasswordRequests::class)->name('interpresso.password.email');
+    Route::get('reset-password/{token}', [PasswordResetController::class, 'resetForm'])->name('interpresso.password.reset');
+    Route::post('reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware(\AnyMedia\Interpresso\Middleware\ThrottlePasswordRequests::class)->name('interpresso.password.update');
     Route::post('logout', [LoginController::class, 'logout'])->name('interpresso.logout');
     Route::post('locale', [LocaleController::class, 'update'])->name('interpresso.locale.update');
 
@@ -53,7 +60,8 @@ Route::prefix(config('interpresso.prefix'))->middleware(['interpresso.security-h
                 Route::post('/', [TranslatorController::class, 'store'])->name('interpresso.translators.store');
                 Route::post('{translator}/update', [TranslatorController::class, 'update'])->name('interpresso.translators.update');
                 Route::post('{translator}/delete', [TranslatorController::class, 'delete'])->name('interpresso.translators.delete');
-                Route::post('{translator}/password', [TranslatorController::class, 'updateNewPassword'])->name('interpresso.translators.password');
+                Route::post('{translator}/invite', [TranslatorController::class, 'resendInvitation'])
+                    ->middleware(\AnyMedia\Interpresso\Middleware\ThrottlePasswordRequests::class)->name('interpresso.translators.invite');
                 Route::post('{translator}/notify', [TranslatorController::class, 'notifyPendingTranslations'])->name('interpresso.translators.notify');
             });
             Route::get(config('interpresso.settings_url'), [SettingController::class, 'index'])->name('interpresso.settings');

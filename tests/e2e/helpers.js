@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 export { expect };
 
@@ -158,4 +158,17 @@ export async function login(page, credentials = ADMIN) {
 export async function expectNoServerError(page) {
     await expect(page.locator('body')).not.toContainText('Internal Server Error');
     await expect(page.locator('body')).not.toContainText('SQLSTATE');
+}
+
+// Real notification rendering and mail transport, captured only in the local fixture.
+export function mailbox(email) {
+    const file = join(__dirname, '.data/mail.jsonl');
+    if (!existsSync(file)) return [];
+    return readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(mail => mail.to.includes(email));
+}
+
+export function passwordLink(mail) {
+    const link = mail.html.match(/href="([^"]*\/reset-password\/[^"]+)"/);
+    expect(link, 'The actual mail contains the account-holder password link').not.toBeNull();
+    return link[1].replaceAll('&amp;', '&');
 }

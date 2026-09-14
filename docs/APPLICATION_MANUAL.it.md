@@ -44,7 +44,7 @@ L'URL di accesso predefinito è `/translator/login`. Se non esiste alcun tradutt
 - Password: `aaaaaaaa`
 - Nome e cognome: `admin`
 
-Accedi, apri **Traduttori**, modifica l'amministratore e usa subito **Cambia password**. Imposta almeno otto caratteri e una conferma identica. Aggiornare soltanto il profilo non cambia la password. Il traduttore con ID `1` non può essere eliminato dall'applicazione, ma profilo e password restano modificabili.
+Accedi, apri **Traduttori** e sostituisci l'email provvisoria del primo amministratore con un tuo indirizzo. Esci, scegli **Hai dimenticato la password?** e segui il link ricevuto per sostituire subito la password predefinita. Solo il titolare imposta la propria password tramite un link email. Il traduttore con ID `1` non può essere eliminato dall'applicazione.
 
 Il modulo di accesso contiene email, password e **Resta connesso**. Credenziali errate lasciano aperta la schermata di accesso. Sono consentiti dieci tentativi per indirizzo IP al minuto; superata la soglia viene mostrato il tempo di attesa. Gli account usano il guard di sessione `interpresso_translator` del pacchetto. Usa **Esci** nella navigazione per terminare la sessione.
 
@@ -179,19 +179,21 @@ Questa schermata, normalmente `/translator/translators`, è riservata agli ammin
 
 ### Creazione, modifica, assegnazione delle lingue ed eliminazione {#create-edit-assign-languages-and-delete}
 
-Apri il modulo di creazione e inserisci email, telefono, nome, cognome, password, conferma, assegnazioni e diritti di amministratore. L'email deve essere valida e univoca; nome e cognome devono avere almeno due caratteri. Il telefono è facoltativo ma, se fornito, deve essere univoco. La password richiede almeno otto caratteri e conferma identica.
+Inserisci email, telefono, nome, cognome, assegnazioni e diritti di amministratore. L'email deve essere valida e univoca; nome e cognome richiedono almeno due caratteri. Il telefono è facoltativo ma univoco se fornito. I moduli del profilo non contengono campi password.
 
 Un non amministratore deve avere almeno un'assegnazione valida. ID duplicati o inesistenti vengono rifiutati. Gli amministratori possono essere salvati senza assegnazioni e accedere a tutte le lingue. Le assegnazioni esplicite continuano a determinare le notifiche ricevute per lingua.
 
-Dopo la scelta, chiudi il menu delle assegnazioni con Lingue e invia il modulo. Gli errori di validazione appaiono accanto ai campi, comprese lingue e conferme password. I moduli rifiutati conservano i dati del profilo; le password vanno reinserite.
+Dopo la scelta, chiudi il menu delle assegnazioni con Lingue e invia il modulo. Gli errori appaiono accanto ai campi. I moduli rifiutati conservano i dati del profilo.
 
-**Crea** salva un nuovo account. **Modifica** ne apre uno esistente; **Aggiorna** salva profilo, diritti e lista di assegnazioni, sostituendo la precedente. **Chiudi** nasconde il modulo. La creazione non invia inviti né email con password.
+**Crea** salva un account senza password e invia subito un invito con **Imposta password**. **Modifica** apre un account; **Aggiorna** salva profilo, diritti e assegnazioni. **Chiudi** nasconde il modulo. Finché il destinatario non imposta la password, la pagina offre **Invia nuovamente l'invito**, che invalida il link precedente. Se l'invio fallisce, l'account rimane disponibile per riprovare.
 
 Usa **Elimina** sulla riga per rimuovere un account. Il traduttore con ID `1` non dispone del comando e il relativo endpoint rifiuta l'azione. Le altre eliminazioni vengono inviate direttamente senza conferma.
 
 ### Password e notifiche di traduzioni in sospeso {#password-changes-and-pending-notifications}
 
-Durante la modifica di un account, **Cambia password** apre un modulo separato. Inserisci nuova password e conferma, quindi premi il suo pulsante di aggiornamento. **Chiudi** torna al profilo. Questo cambio amministrativo non richiede la password attuale. I non amministratori non dispongono di una schermata autonoma per cambiare o reimpostare la password.
+Tutti i titolari, amministratori inclusi, usano **Hai dimenticato la password?** nella pagina di accesso. Inserisci l'email del traduttore, segui **Reimposta password** nel messaggio e scegli tra 8 e 255 caratteri con conferma identica. La risposta pubblica è uguale per indirizzi esistenti e sconosciuti. Richieste, reimpostazioni e reinvii condividono un limite di cinque tentativi per IP al minuto; le email di reimpostazione hanno anche 60 secondi di attesa per account. I link scadono dopo 60 minuti per impostazione predefinita, valgono una volta e per un solo traduttore. Modificare l'email o eliminare l'account revoca i link. Gli utenti dell'applicazione ospitante sono separati.
+
+**SMTP funzionante è obbligatorio per creare nuovi accessi. Senza ricevere l'invito, nessun nuovo traduttore può completare il primo accesso.** Controlla lo spam e usa **Invia nuovamente l'invito**. Configura trasporto e mittente in Laravel. Le richieste pubbliche richiedono anche una coda persistente e un worker, normalmente `php artisan queue:work database --queue=languageProcessor`. Il worker cerca l'account e invia l'email, così i tempi SMTP non rivelano gli account. `sync`, `deferred` e `null` non sono supportati. Vedi la [configurazione](CONFIGURATION.md#translator-password-reset-and-invitations) per tabella, scadenza e coda.
 
 Con `enable_pending_notifications` attivo, il modulo mostra il pulsante di promemoria. Controlla ogni lingua assegnata esplicitamente e mette in coda una notifica se contiene righe con `needs_translation=true`. La consegna usa email e canale notifiche su database. Non conta tutte le righe non approvate; un'assegnazione senza traduzioni richieste non produce invii. Configura il trasporto email e avvia il worker del pacchetto. Il messaggio di successo conferma la richiesta, non la consegna dell'email.
 
@@ -414,7 +416,7 @@ Il pacchetto abilita per impostazione predefinita header di sicurezza rigorosi p
 
 ### Lingua dell'interfaccia {#interface-language}
 
-In qualsiasi pagina, compreso l'accesso, scegli English, Deutsch, Français, Español o Italiano nella navigazione e premi **Cambia lingua**. La risposta successiva mostra subito la lingua scelta e il manuale corrispondente. Il modulo funziona senza JavaScript.
+In qualsiasi pagina, compreso l'accesso, scegli English, Deutsch, Français, Español o Italiano nella navigazione. La selezione invia subito il modulo e ricarica pagina e manuale nella lingua scelta. Senza JavaScript, **Cambia lingua** rimane visibile per inviare lo stesso modulo.
 
 Le modifiche dopo l'accesso vengono salvate nel campo nullable `locale` del traduttore e nel cookie `interpresso-locale`. Senza accesso viene salvato solo il cookie. Dura un anno e usa il prefisso URL del pacchetto, normalmente `/translator`; è cifrato, HttpOnly, SameSite=Lax e Secure su HTTPS. La preferenza dell'account persiste dopo uscita e nuovo accesso, anche da un altro browser.
 

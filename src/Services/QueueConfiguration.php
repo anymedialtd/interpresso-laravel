@@ -56,7 +56,7 @@ class QueueConfiguration
     }
 
     /** @param list<string> $visited */
-    private static function connectionDefersWork(mixed $connection, array $visited = []): bool
+    public static function connectionDefersWork(mixed $connection, array $visited = []): bool
     {
         if (!is_string($connection) || $connection === '' || in_array($connection, $visited, true)) {
             return false;

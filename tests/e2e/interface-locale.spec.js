@@ -21,8 +21,8 @@ async function expectLocale(page, locale, heading) {
 
 async function switchLocale(page, locale) {
     const form = page.locator('#interface-locale-form');
-    await form.getByRole('combobox').selectOption(locale);
-    await submit(page, form.getByRole('button'));
+    await expect(form.locator('button[type="submit"]')).toBeHidden();
+    await Promise.all([page.waitForNavigation(), form.getByRole('combobox').selectOption(locale)]);
 }
 
 test('a translator switches to German before rendering and keeps French after logout and login', async ({ page, context }) => {
@@ -53,7 +53,10 @@ test.describe('anonymous language switching without JavaScript', () => {
 
     test('the login language is saved in a cookie and is correct in the reload response', async ({ page, context }) => {
         await page.goto('/translator/login');
-        await switchLocale(page, 'de');
+        const form = page.locator('#interface-locale-form');
+        await expect(form.getByRole('button')).toBeVisible();
+        await form.getByRole('combobox').selectOption('de');
+        await submit(page, form.getByRole('button'));
         await expect(page.getByRole('button', { name: 'Anmelden', exact: true })).toBeVisible();
         const cookie = (await context.cookies()).find(cookie => cookie.name === 'interpresso-locale');
         expect(cookie.path).toBe('/translator');

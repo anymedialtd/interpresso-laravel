@@ -112,7 +112,8 @@ class HttpUiTest extends BaseTestCase
             route('interpresso.languages', ['create' => 1]),
             route('interpresso.translators', ['create' => 1]),
             route('interpresso.translators.edit', $admin),
-            route('interpresso.translators.edit', ['translator' => $admin, 'password' => 1]),
+            route('interpresso.password.request'),
+            route('interpresso.password.reset', ['token' => str_repeat('a', 64), 'email' => $admin->email]),
             route('interpresso.translations', Language::firstOrFail()),
             route('interpresso.settings'),
         ] as $url) {

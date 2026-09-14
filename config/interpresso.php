@@ -96,6 +96,18 @@ return [
 
     'table_translators' => env('INTERPRESSO_TABLE_TRANSLATORS', 'interpresso_translators'),
 
+    'table_password_reset_tokens' => env('INTERPRESSO_TABLE_PASSWORD_RESET_TOKENS', 'interpresso_password_reset_tokens'),
+
+    'password_reset' => [
+        // Minutes. Invitations and password resets share the same single-use tokens.
+        'expire' => env('INTERPRESSO_PASSWORD_RESET_EXPIRE', 60),
+        'throttle' => 60, // Seconds between emails for the same translator.
+        // Public requests always enqueue, even for unknown addresses. A real
+        // worker keeps account lookup and SMTP timing out of the HTTP response.
+        // Uses queue_name below. Sync/deferred/null connections are rejected.
+        'queue_connection' => env('INTERPRESSO_PASSWORD_RESET_QUEUE_CONNECTION', 'database'),
+    ],
+
     'table_settings' => env('INTERPRESSO_TABLE_SETTINGS', 'interpresso_settings'),
 
     'table_translator_language' => env('INTERPRESSO_TABLE_TRANSLATOR_LANGUAGE', 'interpresso_language'),

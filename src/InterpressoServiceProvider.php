@@ -136,19 +136,20 @@ class InterpressoServiceProvider extends ServiceProvider
         $translatorGuard = config('interpresso.translator_guard');
         Config::set('auth.guards.' . $translatorGuard, [
             'driver' => 'session',
-            'provider' => 'translators',
+            'provider' => 'interpresso_translators',
         ]);
 
-        Config::set('auth.providers.translators', [
+        Config::set('auth.providers.interpresso_translators', [
             'driver' => 'eloquent',
             'model' => Translator::class,
         ]);
 
-        Config::set('auth.passwords.translators', [
-            'provider' => 'translators',
-            'table' => 'password_resets',
-            'expire' => 60,
-            'throttle' => 60,
+        Config::set('auth.passwords.interpresso_translators', [
+            'provider' => 'interpresso_translators',
+            'connection' => config('interpresso.db_connection'),
+            'table' => config('interpresso.table_password_reset_tokens'),
+            'expire' => \AnyMedia\Interpresso\Services\TranslatorPasswords::expiryMinutes(),
+            'throttle' => config('interpresso.password_reset.throttle'),
         ]);
     }
 
@@ -215,6 +216,10 @@ class InterpressoServiceProvider extends ServiceProvider
             $view->with('colorTheme', in_array($theme, ['light', 'dark'], true) ? $theme : null);
             $view->with('themeCookiePath', parse_url(url($prefix), PHP_URL_PATH) ?: '/');
             $view->with('interfaceLocales', resolve(InterfaceLocales::class)->options());
+            /** @var string $guard */
+            $guard = config('interpresso.translator_guard');
+            $translator = auth($guard)->user();
+            $view->with('isAdministrator', $translator instanceof Translator && $translator->admin);
         });
         $this->publishes([
             __DIR__ . '/../resources/views' => resource_path('views/vendor/interpresso')], 'interpresso-views',

@@ -44,7 +44,7 @@ Die Standardadresse zur Anmeldung lautet `/translator/login`. Wenn noch kein Üb
 - Passwort: `aaaaaaaa`
 - Vor- und Nachname: `admin`
 
-Melden Sie sich an, öffnen Sie **Übersetzer**, bearbeiten Sie den Administrator und wählen Sie sofort **Passwort ändern**. Das Passwort muss mindestens acht Zeichen lang sein und mit der Bestätigung übereinstimmen. Eine Profiländerung allein ändert das Passwort nicht. Übersetzer-ID `1` kann über die Anwendung nicht gelöscht werden; Profil und Passwort sind jedoch bearbeitbar.
+Melden Sie sich an, öffnen Sie **Übersetzer** und ersetzen Sie beim anfänglichen Administrator die Platzhalteradresse durch Ihre eigene E-Mail-Adresse. Melden Sie sich ab, wählen Sie **Passwort vergessen?** und folgen Sie dem Link in der E-Mail, um das Standardpasswort sofort zu ersetzen. Nur der Kontoinhaber legt über einen E-Mail-Link sein Passwort fest. Übersetzer-ID `1` kann über die Anwendung nicht gelöscht werden.
 
 Das Anmeldeformular enthält E-Mail, Passwort und **Angemeldet bleiben**. Bei ungültigen Zugangsdaten bleibt die Anmeldeseite geöffnet. Pro IP-Adresse sind zehn Versuche je Minute erlaubt; danach wird die Wartezeit angezeigt. Konten verwenden den Session-Guard `interpresso_translator` des Pakets. Mit **Abmelden** in der Navigation beenden Sie die Sitzung.
 
@@ -179,19 +179,21 @@ Dieser Bereich, normalerweise `/translator/translators`, ist Administratoren vor
 
 ### Anlegen, bearbeiten, Sprachen zuweisen und löschen {#create-edit-assign-languages-and-delete}
 
-Öffnen Sie das Anlageformular und geben Sie E-Mail, Telefon, Vorname, Nachname, Passwort, Passwortbestätigung, Sprachzuweisungen und Administratorrechte an. Die E-Mail-Adresse muss gültig und eindeutig sein; Vor- und Nachname benötigen mindestens zwei Zeichen. Telefon ist optional, muss aber bei Angabe eindeutig sein. Passwörter müssen mindestens acht Zeichen lang sein und mit der Bestätigung übereinstimmen.
+Geben Sie im Anlageformular E-Mail, Telefon, Vorname, Nachname, Sprachzuweisungen und Administratorrechte an. Die E-Mail-Adresse muss gültig und eindeutig sein; Vor- und Nachname benötigen mindestens zwei Zeichen. Telefon ist optional, muss aber bei Angabe eindeutig sein. Profilformulare enthalten keine Passwortfelder.
 
 Ein Konto ohne Administratorrechte benötigt mindestens eine gültige Sprachzuweisung. Doppelte oder nicht vorhandene Zuweisungs-IDs werden abgewiesen. Administratoren können ohne Zuweisungen gespeichert werden und auf alle Sprachen zugreifen. Explizite Zuweisungen bestimmen weiterhin, für welche Sprachen ein Konto Benachrichtigungen erhält.
 
-Schließen Sie nach der Auswahl das Zuweisungsmenü mit Sprachen und senden Sie das Formular ab. Validierungsfehler erscheinen neben den Feldern, auch bei Sprachzuweisungen und Passwortbestätigungen. Abgewiesene Formulare behalten Profilwerte; Passwörter müssen neu eingegeben werden.
+Schließen Sie nach der Auswahl das Zuweisungsmenü mit Sprachen und senden Sie das Formular ab. Validierungsfehler erscheinen neben den Feldern. Abgewiesene Formulare behalten die Profilwerte.
 
-**Anlegen** speichert ein neues Konto. **Bearbeiten** öffnet ein vorhandenes; **Aktualisieren** speichert Profil, Administratorstatus und ausgewählte Zuweisungen. Die bisherige Zuweisungsliste wird dabei ersetzt. **Schließen** blendet das Formular aus. Die Kontoanlage verschickt weder eine Einladung noch eine Passwort-E-Mail.
+**Anlegen** speichert ein Konto ohne Passwort und sendet sofort eine Einladung mit **Passwort festlegen**. **Bearbeiten** öffnet ein Konto; **Aktualisieren** speichert Profil, Rechte und Zuweisungen. **Schließen** blendet das Formular aus. Bis der Empfänger sein Passwort festlegt, bietet die Bearbeitungsseite **Einladung erneut senden** an. Dadurch wird der vorherige Link ungültig. Bei einem Versandfehler bleibt das Konto für einen erneuten Versand erhalten.
 
 Mit **Löschen** in der Zeile entfernen Sie ein Konto. Für Übersetzer-ID `1` fehlt die Aktion, und der Löschendpunkt weist den Versuch ab. Andere Löschungen erfolgen direkt ohne Bestätigungsdialog.
 
 ### Passwortänderungen und Erinnerungen an ausstehende Übersetzungen {#password-changes-and-pending-notifications}
 
-Beim Bearbeiten eines Kontos öffnet **Passwort ändern** ein separates Formular. Geben Sie ein neues Passwort und die passende Bestätigung ein und betätigen Sie dessen Schaltfläche. **Schließen** führt zum Profilformular zurück. Diese administrative Änderung verlangt kein aktuelles Passwort. Für Nicht-Administratoren gibt es keine eigene Seite zum Ändern oder Zurücksetzen des Passworts.
+Alle Kontoinhaber, einschließlich Administratoren, verwenden **Passwort vergessen?** auf der Anmeldeseite. Geben Sie Ihre Übersetzer-E-Mail-Adresse ein und folgen Sie dem zugesandten Link **Passwort zurücksetzen**. Wählen Sie 8 bis 255 Zeichen und eine identische Bestätigung. Die öffentliche Antwort ist bei vorhandenen und unbekannten Adressen gleich. Anforderungen, Zurücksetzungen und erneute Einladungen teilen ein Limit von fünf Versuchen pro IP-Adresse und Minute; E-Mails zum Zurücksetzen haben zusätzlich 60 Sekunden Wartezeit pro Konto. Links gelten standardmäßig 60 Minuten, nur einmal und nur für ein Übersetzerkonto. Eine Änderung der E-Mail-Adresse oder das Löschen des Kontos widerruft die Links. Benutzer der Host-Anwendung sind getrennt.
+
+**Funktionierendes SMTP ist für neue Konten zwingend erforderlich. Ohne zugestellte Einladung kann ein neuer Übersetzer seine erste Anmeldung nicht abschließen.** Prüfen Sie den Spamordner und verwenden Sie bei Bedarf **Einladung erneut senden**. Konfigurieren Sie Mailtransport und Absender in Laravel. Öffentliche Passwortanfragen benötigen zusätzlich eine dauerhafte Queue und einen Worker, standardmäßig `php artisan queue:work database --queue=languageProcessor`. Kontosuche und Mailversand laufen im Worker, damit SMTP-Laufzeiten keine Konten verraten. `sync`, `deferred` und `null` werden dafür nicht unterstützt. [Konfiguration](CONFIGURATION.md#translator-password-reset-and-invitations) beschreibt Tabelle, Ablaufzeit und Queue.
 
 Bei aktiviertem `enable_pending_notifications` zeigt das Bearbeitungsformular eine Schaltfläche für Erinnerungen an ausstehende Übersetzungen. Jede ausdrücklich zugewiesene Sprache wird geprüft. Enthält sie Einträge mit `needs_translation=true`, wird eine Benachrichtigung für E-Mail und Datenbank eingereiht. Es werden nicht alle nicht freigegebenen Einträge gezählt. Ohne angeforderte Übersetzungen wird für die jeweilige Zuweisung nichts versendet. Konfigurieren Sie den Mailtransport und starten Sie den Paket-Worker. Die Erfolgsmeldung bestätigt die Anforderung, nicht die Zustellung der E-Mail.
 
@@ -414,7 +416,7 @@ Das Paket aktiviert standardmäßig strenge Browser-Sicherheitsheader. Skripte u
 
 ### Oberflächensprache {#interface-language}
 
-Wählen Sie auf jeder Seite, auch bei der Anmeldung, English, Deutsch, Français, Español oder Italiano in der Navigation und drücken Sie **Sprache ändern**. Die nächste Seitenantwort zeigt sofort die gewählte Sprache und das entsprechende Handbuch. Das Formular funktioniert ohne JavaScript.
+Wählen Sie auf jeder Seite, auch bei der Anmeldung, English, Deutsch, Français, Español oder Italiano in der Navigation. Die Auswahl sendet das Formular sofort ab und lädt die Seite samt Handbuch in der gewählten Sprache neu. Ohne JavaScript bleibt **Sprache ändern** sichtbar und sendet dasselbe Formular ab.
 
 Angemeldete Änderungen werden im optionalen Feld `locale` des Übersetzers und im Cookie `interpresso-locale` gespeichert. Ohne Anmeldung wird nur das Cookie gesetzt. Es gilt ein Jahr und verwendet den URL-Präfix des Pakets, normalerweise `/translator`; es ist verschlüsselt, HttpOnly, SameSite=Lax und bei HTTPS Secure. Die Kontoeinstellung bleibt nach Abmeldung und erneuter Anmeldung erhalten, auch in einem anderen Browser.
 

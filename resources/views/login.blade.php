@@ -7,6 +7,9 @@
                 <h1 class="card-title text-xl md:text-2xl">
                     {{ __('interpresso::login.title') }}
                 </h1>
+                @if(session('password_status'))
+                    <p role="status">{{ session('password_status') }}</p>
+                @endif
                 <form method="POST" action="{{ route('interpresso.login.submit') }}" class="space-y-4 md:space-y-6">
                     @csrf
                     <div>
@@ -46,6 +49,7 @@
                         ]
                      )
                 </form>
+                <a href="{{ route('interpresso.password.request') }}" class="link">{{ __('interpresso::passwords.forgot') }}</a>
             </div>
         </div>
     </div>

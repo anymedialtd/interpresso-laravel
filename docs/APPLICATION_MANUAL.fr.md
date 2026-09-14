@@ -44,7 +44,7 @@ L'adresse de connexion par défaut est `/translator/login`. Lorsqu'aucun traduct
 - Mot de passe : `aaaaaaaa`
 - Prénom et nom : `admin`
 
-Connectez-vous, ouvrez **Traducteurs**, modifiez l'administrateur et utilisez immédiatement **Modifier le mot de passe**. Choisissez un mot de passe d'au moins huit caractères et confirmez-le à l'identique. Modifier le profil seul ne change pas le mot de passe. Le traducteur d'identifiant `1` ne peut pas être supprimé depuis l'application, mais son profil et son mot de passe restent modifiables.
+Connectez-vous, ouvrez **Traducteurs** et remplacez l'adresse provisoire du premier administrateur par votre propre e-mail. Déconnectez-vous, choisissez **Mot de passe oublié ?** et suivez le lien reçu pour remplacer immédiatement le mot de passe par défaut. Seul le titulaire du compte peut définir son mot de passe par un lien envoyé par e-mail. Le traducteur d'identifiant `1` ne peut pas être supprimé depuis l'application.
 
 Le formulaire de connexion comprend l'e-mail, le mot de passe et **Rester connecté**. Des identifiants incorrects vous laissent sur cette page. La connexion est limitée à dix tentatives par adresse IP et par minute ; le délai avant une nouvelle tentative s'affiche au-delà. Les comptes utilisent le guard de session `interpresso_translator` du package. Utilisez **Se déconnecter** dans la navigation pour terminer la session.
 
@@ -179,19 +179,21 @@ Cet écran, généralement `/translator/translators`, est réservé aux administ
 
 ### Créer, modifier, affecter des langues et supprimer {#create-edit-assign-languages-and-delete}
 
-Ouvrez le formulaire de création pour saisir e-mail, téléphone, prénom, nom, mot de passe, confirmation, affectations de langues et droits d'administration. L'e-mail doit être valide et unique ; prénom et nom doivent comporter au moins deux caractères. Le téléphone est facultatif mais doit être unique s'il est renseigné. Le mot de passe nécessite au moins huit caractères et une confirmation identique.
+Saisissez e-mail, téléphone, prénom, nom, affectations de langues et droits d'administration. L'e-mail doit être valide et unique ; prénom et nom nécessitent au moins deux caractères. Le téléphone est facultatif mais unique s'il est renseigné. Les formulaires de profil ne contiennent aucun champ de mot de passe.
 
 Un non-administrateur doit avoir au moins une affectation valide. Les identifiants d'affectation dupliqués ou inexistants sont refusés. Les administrateurs peuvent être enregistrés sans affectations et accéder à toutes les langues. Les affectations explicites déterminent néanmoins les notifications de langues reçues.
 
-Après votre choix, fermez le menu des affectations avec le bouton Langues, puis envoyez le formulaire. Les erreurs de validation s'affichent à côté des champs, y compris les langues et confirmations de mot de passe. Les formulaires refusés conservent les valeurs du profil ; les mots de passe doivent être ressaisis.
+Après votre choix, fermez le menu des affectations avec Langues et envoyez le formulaire. Les erreurs apparaissent à côté des champs. Les formulaires refusés conservent les valeurs du profil.
 
-**Créer** enregistre un nouveau compte. **Modifier** ouvre un compte existant ; **Mettre à jour** enregistre le profil, les droits d'administration et la liste des affectations choisies, qui remplace la précédente. **Fermer** masque le formulaire. La création n'envoie ni invitation ni e-mail de mot de passe.
+**Créer** enregistre un compte sans mot de passe et envoie immédiatement une invitation avec un lien **Définir le mot de passe**. **Modifier** ouvre un compte ; **Mettre à jour** enregistre profil, droits et affectations. **Fermer** masque le formulaire. Avant la définition du mot de passe, la page propose **Renvoyer l'invitation**, ce qui invalide le lien précédent. En cas d'échec d'envoi, le compte reste disponible pour réessayer.
 
 Utilisez **Supprimer** sur une ligne pour retirer un compte. Le traducteur d'identifiant `1` n'a pas de bouton Supprimer et son endpoint refuse l'opération. Les autres suppressions sont envoyées directement sans confirmation.
 
 ### Mots de passe et notifications de traductions en attente {#password-changes-and-pending-notifications}
 
-Lors de la modification d'un compte, **Modifier le mot de passe** ouvre un formulaire distinct. Saisissez le nouveau mot de passe et sa confirmation, puis utilisez son bouton de mise à jour. **Fermer** revient au profil. Cette modification administrative ne demande pas le mot de passe actuel. Aucun écran autonome de changement ou réinitialisation n'est proposé aux non-administrateurs.
+Tous les titulaires, administrateurs compris, utilisent **Mot de passe oublié ?** sur la page de connexion. Saisissez l'e-mail du traducteur, suivez **Réinitialiser le mot de passe** dans le message et choisissez un mot de passe de 8 à 255 caractères avec une confirmation identique. La réponse publique est identique pour les adresses connues et inconnues. Les demandes, réinitialisations et renvois d'invitation partagent une limite de cinq tentatives par IP et par minute ; les e-mails de réinitialisation ont aussi un délai de 60 secondes par compte. Les liens expirent après 60 minutes par défaut, sont à usage unique et propres à un traducteur. Modifier son adresse ou supprimer son compte révoque ses liens. Les utilisateurs de l'application hôte sont distincts.
+
+**Un SMTP opérationnel est obligatoire pour accueillir de nouveaux traducteurs. Sans invitation reçue, aucune première connexion n'est possible.** Vérifiez les courriers indésirables et utilisez **Renvoyer l'invitation**. Configurez transport et expéditeur dans Laravel. Les demandes publiques nécessitent aussi une file persistante et un worker, par défaut `php artisan queue:work database --queue=languageProcessor`. Le worker recherche le compte et envoie l'e-mail pour que les délais SMTP ne révèlent pas les comptes. Les files `sync`, `deferred` et `null` sont refusées. Voir la [configuration](CONFIGURATION.md#translator-password-reset-and-invitations) pour la table, l'expiration et la file.
 
 Lorsque `enable_pending_notifications` est activé, le formulaire affiche le bouton de rappel des traductions en attente. Il vérifie chaque langue explicitement affectée et met une notification en file si elle contient des lignes avec `needs_translation=true`. La livraison utilise l'e-mail et le canal de notifications en base. Ce calcul ne compte pas toutes les lignes non validées ; une affectation sans demande de traduction ne produit aucun envoi. Configurez le transport mail de l'application et lancez le worker du package. Le message de réussite confirme la demande, pas la livraison de l'e-mail.
 
@@ -414,7 +416,7 @@ Le package active des en-têtes de sécurité navigateur stricts par défaut. Sc
 
 ### Langue de l'interface {#interface-language}
 
-Sur chaque page, y compris la connexion, choisissez English, Deutsch, Français, Español ou Italiano dans la navigation et cliquez sur **Changer de langue**. La réponse suivante affiche immédiatement la langue choisie et le manuel correspondant. Ce formulaire fonctionne sans JavaScript.
+Sur chaque page, y compris la connexion, choisissez English, Deutsch, Français, Español ou Italiano dans la navigation. Le changement envoie immédiatement le formulaire et recharge la page et le manuel dans cette langue. Sans JavaScript, le bouton **Changer de langue** reste visible pour envoyer le même formulaire.
 
 Les changements après connexion sont enregistrés dans le champ nullable `locale` du traducteur et le cookie `interpresso-locale`. Sans connexion, seul le cookie est enregistré. Il dure un an et suit le préfixe URL du package, généralement `/translator` ; il est chiffré, HttpOnly, SameSite=Lax et Secure sous HTTPS. La préférence du compte persiste après déconnexion et nouvelle connexion, y compris dans un autre navigateur.
 

@@ -44,7 +44,7 @@ La URL de acceso predeterminada es `/translator/login`. Si no existe ningún tra
 - Contraseña: `aaaaaaaa`
 - Nombre y apellidos: `admin`
 
-Inicie sesión, abra **Traductores**, edite el administrador y use **Cambiar contraseña** de inmediato. Introduzca una contraseña de al menos ocho caracteres y una confirmación idéntica. Actualizar solo el perfil no cambia la contraseña. El traductor con ID `1` no puede eliminarse desde la aplicación, pero su perfil y contraseña sí pueden modificarse.
+Inicie sesión, abra **Traductores** y cambie el correo provisional del primer administrador por una dirección propia. Cierre sesión, elija **¿Has olvidado tu contraseña?** y siga el enlace recibido para sustituir inmediatamente la contraseña predeterminada. Solo el titular establece su contraseña mediante un enlace por correo. El traductor con ID `1` no puede eliminarse desde la aplicación.
 
 El formulario incluye correo electrónico, contraseña y **Mantener la sesión iniciada**. Las credenciales incorrectas dejan al usuario en la pantalla de acceso. Se permiten diez intentos por dirección IP y minuto; al superarlos, se muestra cuánto debe esperar. Las cuentas usan el guard de sesión `interpresso_translator` del paquete. Use **Cerrar sesión** en la navegación para finalizarla.
 
@@ -179,19 +179,21 @@ Esta pantalla, normalmente `/translator/translators`, es exclusiva para administ
 
 ### Crear, editar, asignar idiomas y eliminar {#create-edit-assign-languages-and-delete}
 
-Abra el formulario de creación e introduzca correo, teléfono, nombre, apellidos, contraseña, confirmación, asignaciones y permisos de administrador. El correo debe ser válido y único; nombre y apellidos requieren al menos dos caracteres. El teléfono es opcional, pero debe ser único si se indica. Las contraseñas necesitan al menos ocho caracteres y confirmación idéntica.
+Introduzca correo, teléfono, nombre, apellidos, asignaciones y permisos de administrador. El correo debe ser válido y único; nombre y apellidos requieren al menos dos caracteres. El teléfono es opcional pero único si se indica. Los formularios de perfil no incluyen campos de contraseña.
 
 Un no administrador requiere al menos una asignación válida. Los ID de asignación duplicados o inexistentes se rechazan. Un administrador puede guardarse sin asignaciones y acceder a todos los idiomas. Las asignaciones explícitas siguen determinando de qué idiomas recibe notificaciones.
 
-Tras elegir idiomas, cierre el desplegable con el botón Idiomas y envíe el formulario. Los errores aparecen junto a los campos, incluidas asignaciones y confirmaciones de contraseña. Los formularios rechazados conservan datos de perfil; las contraseñas deben introducirse otra vez.
+Tras elegir idiomas, cierre el desplegable con Idiomas y envíe el formulario. Los errores aparecen junto a los campos. Los formularios rechazados conservan los datos del perfil.
 
-**Crear** guarda una cuenta nueva. **Editar** abre una existente; **Actualizar** guarda perfil, permisos y lista de asignaciones, sustituyendo las anteriores. **Cerrar** oculta el formulario. Crear una cuenta no envía invitación ni correo de contraseña.
+**Crear** guarda una cuenta sin contraseña y envía inmediatamente una invitación con **Establecer contraseña**. **Editar** abre una cuenta; **Actualizar** guarda perfil, permisos y asignaciones. **Cerrar** oculta el formulario. Hasta que el destinatario establezca su contraseña, la edición ofrece **Reenviar invitación**, que invalida el enlace anterior. Si falla el envío, la cuenta se conserva para volver a intentarlo.
 
 Use **Eliminar** en la fila para borrar una cuenta. El traductor con ID `1` no tiene esta acción y su endpoint la rechaza. Las demás eliminaciones se envían directamente sin confirmación.
 
 ### Contraseñas y avisos de traducciones pendientes {#password-changes-and-pending-notifications}
 
-Al editar una cuenta, **Cambiar contraseña** abre un formulario separado. Introduzca la nueva contraseña y su confirmación y use su botón de actualización. **Cerrar** vuelve al perfil. Este cambio administrativo no pide la contraseña actual. Los no administradores no tienen pantalla de autoservicio para cambiarla o restablecerla.
+Todos los titulares, incluidos los administradores, usan **¿Has olvidado tu contraseña?** en la página de acceso. Introduzca el correo del traductor, siga **Restablecer contraseña** en el mensaje y elija entre 8 y 255 caracteres con confirmación idéntica. La respuesta pública es igual para direcciones conocidas y desconocidas. Las solicitudes, restablecimientos y reenvíos comparten un límite de cinco intentos por IP y minuto; los correos de restablecimiento tienen además una espera de 60 segundos por cuenta. Los enlaces caducan por defecto en 60 minutos, son de un solo uso y pertenecen a un único traductor. Cambiar su correo o eliminar su cuenta revoca sus enlaces. Los usuarios de la aplicación anfitriona son independientes.
+
+**SMTP operativo es obligatorio para incorporar traductores. Sin recibir la invitación, nadie puede completar su primer acceso.** Revise el correo no deseado y use **Reenviar invitación**. Configure transporte y remitente en Laravel. Las solicitudes públicas necesitan además una cola persistente y un proceso de trabajo, por defecto `php artisan queue:work database --queue=languageProcessor`. Este busca la cuenta y envía el correo para que los tiempos SMTP no revelen cuentas. No se admiten `sync`, `deferred` ni `null`. Consulte la [configuración](CONFIGURATION.md#translator-password-reset-and-invitations) para tabla, caducidad y cola.
 
 Con `enable_pending_notifications` activo, el formulario muestra el botón de recordatorio. Revisa cada idioma asignado explícitamente y pone en cola una notificación si contiene filas con `needs_translation=true`. La entrega usa correo y el canal de notificaciones de base de datos. No cuenta todas las filas sin aprobar; una asignación sin traducciones solicitadas no produce envío. Configure el transporte de correo y ejecute el proceso de trabajo del paquete. El aviso de éxito confirma la solicitud, no la entrega del correo.
 
@@ -414,7 +416,7 @@ El paquete activa cabeceras estrictas de seguridad del navegador por defecto. Sc
 
 ### Idioma de la interfaz {#interface-language}
 
-En cualquier página, incluida la de acceso, elija English, Deutsch, Français, Español o Italiano en la navegación y pulse **Cambiar idioma**. La siguiente respuesta muestra inmediatamente el idioma elegido y el manual correspondiente. Este formulario funciona sin JavaScript.
+En cualquier página, incluida la de acceso, elija English, Deutsch, Français, Español o Italiano en la navegación. El cambio envía automáticamente el formulario y recarga la página y el manual en ese idioma. Sin JavaScript, **Cambiar idioma** sigue visible para enviar el mismo formulario.
 
 Los cambios con sesión iniciada se guardan en el campo nullable `locale` del traductor y en la cookie `interpresso-locale`. Sin sesión, solo se guarda la cookie. Dura un año y usa el prefijo URL del paquete, normalmente `/translator`; está cifrada y usa HttpOnly, SameSite=Lax y Secure en HTTPS. La preferencia de la cuenta persiste tras cerrar e iniciar sesión, incluso desde otro navegador.
 

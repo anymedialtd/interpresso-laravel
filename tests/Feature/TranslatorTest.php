@@ -3,8 +3,6 @@
 namespace AnyMedia\Interpresso\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\Test;
 use AnyMedia\Interpresso\Models\Language;
@@ -22,13 +20,13 @@ class TranslatorTest extends BaseTestCase
     {
         parent::setUp();
         $this->admin = Translator::firstOrFail();
+        Notification::fake();
     }
 
     private function profile(array $overrides = []): array
     {
         return array_replace([
             'first_name' => 'John', 'last_name' => 'Doe', 'email' => 'john@example.test', 'phone' => '234234234',
-            'password' => 'aaaaaaaa', 'password_confirmation' => 'aaaaaaaa',
             'languages' => Language::pluck('id')->all(), 'admin' => '0',
         ], $overrides);
     }
@@ -75,7 +73,8 @@ class TranslatorTest extends BaseTestCase
     {
         $this->actingAs($this->admin)->post(route('interpresso.translators.store'), $this->profile())->assertRedirect()->assertSessionHasNoErrors();
         $translator = Translator::where('email', 'john@example.test')->firstOrFail();
-        $this->assertTrue(Hash::check('aaaaaaaa', $translator->password));
+        $this->assertNull($translator->password);
+        Notification::assertSentTo($translator, \AnyMedia\Interpresso\Notifications\TranslatorPasswordLink::class, fn ($notification) => $notification->invitation);
         $this->assertSame(Language::pluck('id')->all(), $translator->languages->modelKeys());
         $this->get(route('interpresso.translators'))->assertSee($translator->email);
         $this->assertSame(2, Translator::count());
@@ -85,20 +84,9 @@ class TranslatorTest extends BaseTestCase
     public function invalid_user_data_is_rejected(): void
     {
         $this->actingAs($this->admin)->post(route('interpresso.translators.store'), $this->profile([
-            'email' => 'john', 'password_confirmation' => 'aaaaaaa', 'languages' => [],
-        ]))->assertSessionHasErrors(['password_confirmation', 'email', 'languages']);
+            'email' => 'john', 'languages' => [],
+        ]))->assertSessionHasErrors(['email', 'languages']);
         $this->assertSame(1, Translator::count());
-    }
-
-    #[Test]
-    public function admin_can_update_users_password(): void
-    {
-        $translator = $this->createUser(Language::all());
-        $this->assertFalse(Auth::attempt(['email' => $translator->email, 'password' => 'newvalue']));
-        $this->actingAs($this->admin)->post(route('interpresso.translators.password', $translator), [
-            'new_password' => 'newvalue', 'new_password_confirmation' => 'newvalue',
-        ])->assertRedirect()->assertSessionHasNoErrors();
-        $this->assertTrue(Auth::attempt(['email' => $translator->email, 'password' => 'newvalue']));
     }
 
     #[Test]
@@ -117,7 +105,7 @@ class TranslatorTest extends BaseTestCase
         $translator = $this->createUser(Language::all());
         $hash = $translator->password;
         $german = Language::create(['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch']);
-        $this->actingAs($this->admin)->post(route('interpresso.translators.update', $translator), $this->profile(['languages' => [$german->id]]))->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('interpresso.translators.update', $translator), $this->profile(['languages' => [$german->id], 'password' => 'injected-password', 'password_confirmation' => 'injected-password', 'new_password' => 'injected-password']))->assertSessionHasNoErrors();
         $this->assertSame($hash, $translator->fresh()->password);
         $this->assertSame([$german->id], $translator->fresh()->languages->modelKeys());
         $before = $translator->fresh()->getAttributes();

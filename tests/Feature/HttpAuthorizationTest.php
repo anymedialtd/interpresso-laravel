@@ -36,7 +36,7 @@ class HttpAuthorizationTest extends BaseTestCase
             'interpresso.translations.approve-all', 'interpresso.translations.export', 'interpresso.translations.update-all', 'interpresso.translations.approve',
             'interpresso.translations.request', 'interpresso.translations.restore-request', 'interpresso.translations.restore',
             'interpresso.translators', 'interpresso.translators.edit', 'interpresso.translators.store', 'interpresso.translators.update', 'interpresso.translators.delete',
-            'interpresso.translators.password', 'interpresso.translators.notify', 'interpresso.settings', 'interpresso.settings.update',
+            'interpresso.translators.invite', 'interpresso.translators.notify', 'interpresso.settings', 'interpresso.settings.update',
         ];
         foreach ($adminRoutes as $name) {
             $route = Route::getRoutes()->getByName($name);

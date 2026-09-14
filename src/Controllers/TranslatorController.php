@@ -10,10 +10,10 @@ use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Notifications\PendingTranslationsNotification;
 use AnyMedia\Interpresso\Requests\StoreTranslatorRequest;
-use AnyMedia\Interpresso\Requests\UpdateTranslatorPasswordRequest;
 use AnyMedia\Interpresso\Requests\UpdateTranslatorRequest;
 use AnyMedia\Interpresso\Services\Toast;
 use AnyMedia\Interpresso\Services\InterfaceLocales;
+use AnyMedia\Interpresso\Services\TranslatorPasswords;
 
 class TranslatorController extends BaseController
 {
@@ -40,7 +40,6 @@ class TranslatorController extends BaseController
             'interfaceLocales' => resolve(InterfaceLocales::class)->options(),
             'translator' => $translator,
             'showForm' => $translator !== null || $request->boolean('create'),
-            'showUpdatePasswordForm' => $translator !== null && $request->boolean('password'),
             'search' => $search,
             'selectedLanguages' => $selectedLanguages,
         ]);
@@ -55,13 +54,17 @@ class TranslatorController extends BaseController
             $languages = $request->validated('languages', []) ?? [];
             $translator->languages()->sync($languages);
         });
-        Toast::flash(__('interpresso::translators.created'));
+        $this->sendInvitation($translator);
         return redirect()->route('interpresso.translators');
     }
 
     public function update(UpdateTranslatorRequest $request, Translator $translator): RedirectResponse
     {
         $translator->getConnection()->transaction(function () use ($request, $translator): void {
+            $translator = Translator::query()->lockForUpdate()->findOrFail($translator->id);
+            if ($translator->email !== $request->validated('email')) {
+                resolve(TranslatorPasswords::class)->broker()->deleteToken($translator);
+            }
             $translator->update($request->translatorAttributes());
             /** @var list<int|string> $languages Validated assignment IDs. */
             $languages = $request->validated('languages', []) ?? [];
@@ -75,6 +78,8 @@ class TranslatorController extends BaseController
     {
         abort_if($translator->id === 1, 403);
         $translator->getConnection()->transaction(function () use ($translator): void {
+            $translator = Translator::query()->lockForUpdate()->findOrFail($translator->id);
+            resolve(TranslatorPasswords::class)->broker()->deleteToken($translator);
             $translator->languages()->detach();
             $translator->delete();
         });
@@ -82,11 +87,22 @@ class TranslatorController extends BaseController
         return redirect()->route('interpresso.translators');
     }
 
-    public function updateNewPassword(UpdateTranslatorPasswordRequest $request, Translator $translator): RedirectResponse
+    public function resendInvitation(Translator $translator): RedirectResponse
     {
-        $translator->update($request->translatorAttributes());
-        Toast::flash(__('interpresso::translators.password_updated_success', ['email' => $translator->email]));
+        abort_unless($translator->password === null, 403);
+        $this->sendInvitation($translator);
         return redirect()->route('interpresso.translators.edit', $translator);
+    }
+
+    private function sendInvitation(Translator $translator): void
+    {
+        try {
+            resolve(TranslatorPasswords::class)->sendLink($translator->email, app('translator')->getLocale(), true);
+            Toast::flash(__('interpresso::passwords.invitation_sent', ['email' => $translator->email]));
+        } catch (\Throwable $exception) {
+            report($exception);
+            Toast::flash(__('interpresso::passwords.invitation_failed'), 'WARNING', 10000);
+        }
     }
 
     public function notifyPendingTranslations(Translator $translator): RedirectResponse

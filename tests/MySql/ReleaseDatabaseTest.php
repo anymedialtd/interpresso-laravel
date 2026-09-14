@@ -70,7 +70,7 @@ class ReleaseDatabaseTest extends TestCase
         if (Schema::hasIndex($table, 'interpresso_translations_language_id_foreign')) {
             Schema::table($table, fn ($blueprint) => $blueprint->dropIndex('interpresso_translations_language_id_foreign'));
         }
-        $this->artisan('migrate:rollback', ['--step' => 5, '--force' => true])->assertExitCode(0);
+        $this->artisan('migrate:rollback', ['--step' => 6, '--force' => true])->assertExitCode(0);
         $this->assertFalse(Schema::hasIndex($table, 'ltr_lang_approved_idx'));
         $this->assertTrue(Schema::hasIndex($table, 'interpresso_translations_language_id_foreign'));
         $this->assertNotEmpty(Schema::getForeignKeys($table));
@@ -84,6 +84,33 @@ class ReleaseDatabaseTest extends TestCase
         $this->assertNotEmpty($indexes);
         foreach ($indexes as $index) $this->assertLessThanOrEqual(60, strlen($index->name), $index->name);
         $this->assertTrue(Schema::hasIndex($table, 'ltr_lang_approved_idx'));
+    }
+
+    #[Test]
+    public function translator_reset_tokens_support_custom_tables_and_repeatable_migration_on_mysql(): void
+    {
+        $original = config('interpresso.table_password_reset_tokens');
+        $name = 'custom_translator_password_reset_tokens_with_a_long_table_name';
+        config(['interpresso.table_password_reset_tokens' => $name]);
+        $migration = require dirname(__DIR__, 2) . '/database/migrations/2026_09_14_000002_create_translator_password_reset_tokens_table.php';
+        try {
+            $migration->up();
+            $migration->up();
+            DB::table($name)->insert(['email' => 'recipient@example.test', 'token' => 'hashed-token', 'created_at' => now()]);
+            $migration->up();
+            $this->assertSame('hashed-token', DB::table($name)->value('token'));
+            $indexes = DB::select('SELECT INDEX_NAME AS name FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$name]);
+            $this->assertNotEmpty($indexes);
+            foreach ($indexes as $index) $this->assertLessThanOrEqual(60, strlen($index->name), $index->name);
+            $migration->down();
+            $migration->down();
+            $this->assertFalse(Schema::hasTable($name));
+            $migration->up();
+            $this->assertTrue(Schema::hasColumns($name, ['email', 'token', 'created_at']));
+        } finally {
+            $migration->down();
+            config(['interpresso.table_password_reset_tokens' => $original]);
+        }
     }
 
     #[Test]

@@ -15,13 +15,10 @@ return [
         ],
     ],
     'form' => [
-        'update_password_title' => 'Update Password for :email',
         'label' => [
             'first_name' => 'First Name',
             'last_name' => 'Last Name',
             'email' => 'Email',
-            'password' => 'Password',
-            'password_confirmation' => 'Password Confirmation',
             'phone' => 'Phone',
             'admin' => 'Is Administrator',
             'languages' => 'Languages',
@@ -31,7 +28,6 @@ return [
             'edit' => 'Edit',
             'close' => 'Close',
             'update' => 'Update',
-            'update_password' => 'Update Password',
             'pending_translations_notification' => 'Send pending translations notification'
         ],
         'info' => [
@@ -42,5 +38,4 @@ return [
     'created' => 'Translator created',
     'updated' => 'Translator updated',
     'deleted' => 'Translator deleted',
-    'password_updated_success' => 'Password for :email updated.',
 ];
