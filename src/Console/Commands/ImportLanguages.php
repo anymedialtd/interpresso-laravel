@@ -6,7 +6,6 @@ namespace AnyMedia\Interpresso\Console\Commands;
 use Illuminate\Console\Command;
 use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use AnyMedia\Interpresso\Models\Language;
-use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\ImportLanguageService;
 
@@ -33,9 +32,8 @@ class ImportLanguages extends Command
      */
     public function handle(ImportLanguageService $importLanguageService): void
     {
-        if($this->anotherJobIsRunning(true)) return;
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
         try {
-            Setting::setJobsRunning();
 
             $languages = Language::all();
             if($languages->count()) {
@@ -56,7 +54,7 @@ class ImportLanguages extends Command
             }
 
         } finally {
-            Setting::setJobsRunning(false);
+            $lock->release();
         }
     }
 }

@@ -22,6 +22,7 @@ class ImportTranslationService
     use CanCreateTranslation;
 
     protected null|Batch $batch = null;
+    protected ?ProcessLock $processLock = null;
 
     protected string $root;
 
@@ -41,8 +42,9 @@ class ImportTranslationService
     /**
      * @throws ImportTranslationsException
      */
-    public function importTranslations(null|Batch $batch = null): void
+    public function importTranslations(null|Batch $batch = null, ?ProcessLock $lock = null): void
     {
+        $this->processLock = $lock;
         if ($batch) {
             $this->batch = $batch;
         }
@@ -84,6 +86,7 @@ class ImportTranslationService
             $tableId = $modelInstance->getKeyName();
             DB::table($modelInstance->getTable())->chunkById(300,
                 function($models) use( $modelClass, $modelInstance, $tableId) {
+                    $this->processLock?->refresh();
                     $content = [];
                     foreach($this->languages as $language) {
                         /** @var Language $language */
@@ -200,6 +203,7 @@ class ImportTranslationService
      */
     protected function generateContent(string $root, \SplFileInfo $file): void
     {
+        $this->processLock?->refresh();
         $relativePathname = $file->getFilename();
 
         try {

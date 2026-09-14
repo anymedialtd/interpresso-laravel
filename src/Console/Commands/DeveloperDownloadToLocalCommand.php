@@ -4,6 +4,7 @@ namespace AnyMedia\Interpresso\Console\Commands;
 
 
 use Illuminate\Console\Command;
+use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,7 @@ use AnyMedia\Interpresso\Services\ExportTranslationService;
 
 class DeveloperDownloadToLocalCommand extends Command
 {
+    use ChecksForRunningJobs;
 
     /**
      * The name and signature of the console command.
@@ -37,74 +39,79 @@ class DeveloperDownloadToLocalCommand extends Command
      */
     public function handle(): void
     {
-        /** @var string $apiKey Configured shared API key. */
-        $apiKey = config('interpresso.api_shared_api_key');
-        $this->apiKeyParams = ['api_key' => $apiKey];
-
-        /** @var string|\UnitEnum|null $connection Configured database connection name. */
-        $connection = config('interpresso.db_connection');
-        $DB = DB::connection($connection);
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
         try {
-            $DB->statement('SET FOREIGN_KEY_CHECKS=0;');
-            $DB->beginTransaction();
+            /** @var string $apiKey Configured shared API key. */
+            $apiKey = config('interpresso.api_shared_api_key');
+            $this->apiKeyParams = ['api_key' => $apiKey];
 
-            $this->info('Request all languages.');
-            /** @var string $domain Configured main server URL. */
-            $domain = config('interpresso.main_server_domain');
-            $response = Http::post($domain . route('interpresso.api.get-languages', [], false), $this->apiKeyParams);
-            if ($response->status() !== 200) {
-                throw new \Exception('DeveloperDownloadToLocalCommand: Couldn\'t import languages');
-            }
-            $this->info('Deleting all languages in DB');
-            Language::query()->delete();
-            Translation::invalidateCacheAfterWrite();
-            $this->info('Inserting all languages in DB');
-            /** @var list<array<string, scalar|null>> $languages Serialized LanguageResource records. */
-            $languages = $response['data'];
-            Language::insert($languages);
+            /** @var string|\UnitEnum|null $connection Configured database connection name. */
+            $connection = config('interpresso.db_connection');
+            $DB = DB::connection($connection);
+            try {
+                $DB->statement('SET FOREIGN_KEY_CHECKS=0;');
+                $DB->beginTransaction();
 
-            $this->info('Requesting Translations 1');
-            $response = $this->sendGetPaginatedTranslationsRequest();
-            if ($response->status() !== 200) {
-                $this->throwException();
-            }
-            $this->info('Deleting All Translations in DB');
-            Translation::query()->delete();
-            Translation::invalidateCacheAfterWrite();
-
-            $this->info('Inserting Translations 1 in DB');
-            /** @var array{data: list<array<string, scalar|null>>, meta: array{last_page: int}} $payload Paginated TranslationResource response. */
-            $payload = $response->json();
-            Translation::insert($payload['data']);
-            Translation::invalidateCacheAfterWrite();
-            for($page = 2; $page <= $payload['meta']['last_page']; $page++) {
-                $this->info('Requesting Translations 2');
-                $response = $this->sendGetPaginatedTranslationsRequest(['page' => $page]);
+                $this->info('Request all languages.');
+                /** @var string $domain Configured main server URL. */
+                $domain = config('interpresso.main_server_domain');
+                $response = Http::post($domain . route('interpresso.api.get-languages', [], false), $this->apiKeyParams);
                 if ($response->status() !== 200) {
-                    $this->throwException($page);
+                    throw new \Exception('DeveloperDownloadToLocalCommand: Couldn\'t import languages');
                 }
-                $this->info('Inserting Translations 2 in DB');
+                $this->info('Deleting all languages in DB');
+                Language::query()->delete();
+                Translation::invalidateCacheAfterWrite();
+                $this->info('Inserting all languages in DB');
+                /** @var list<array<string, scalar|null>> $languages Serialized LanguageResource records. */
+                $languages = $response['data'];
+                Language::insert($languages);
+
+                $this->info('Requesting Translations 1');
+                $response = $this->sendGetPaginatedTranslationsRequest();
+                if ($response->status() !== 200) {
+                    $this->throwException();
+                }
+                $this->info('Deleting All Translations in DB');
+                Translation::query()->delete();
+                Translation::invalidateCacheAfterWrite();
+
+                $this->info('Inserting Translations 1 in DB');
                 /** @var array{data: list<array<string, scalar|null>>, meta: array{last_page: int}} $payload Paginated TranslationResource response. */
                 $payload = $response->json();
                 Translation::insert($payload['data']);
                 Translation::invalidateCacheAfterWrite();
+                for($page = 2; $page <= $payload['meta']['last_page']; $page++) {
+                    $this->info('Requesting Translations 2');
+                    $response = $this->sendGetPaginatedTranslationsRequest(['page' => $page]);
+                    if ($response->status() !== 200) {
+                        $this->throwException($page);
+                    }
+                    $this->info('Inserting Translations 2 in DB');
+                    /** @var array{data: list<array<string, scalar|null>>, meta: array{last_page: int}} $payload Paginated TranslationResource response. */
+                    $payload = $response->json();
+                    Translation::insert($payload['data']);
+                    Translation::invalidateCacheAfterWrite();
+                }
+                $DB->commit();
+                $this->info('All translation inserted');
+                $DB->statement('SET FOREIGN_KEY_CHECKS=1;');
+            } catch(\Throwable $e) {
+                $DB->rollBack();
+                $DB->statement('SET FOREIGN_KEY_CHECKS=1;');
+                $this->info('Something went wrong resetting database.');
+                throw $e;
             }
-            $DB->commit();
-            $this->info('All translation inserted');
-            $DB->statement('SET FOREIGN_KEY_CHECKS=1;');
-        } catch(\Exception $e) {
-            $DB->rollBack();
-            $DB->statement('SET FOREIGN_KEY_CHECKS=1;');
-            $this->info('Something went wrong resetting database.');
-            throw $e;
+            $this->info('Start language export to file.');
+            $exportTranslationService = resolve(ExportTranslationService::class);
+            Language::query()->each(function (Language $language) use ($exportTranslationService) {
+                $this->info('Exporting language : ' . $language->code . ' to file.');
+                $exportTranslationService->forceExportTranslationForLanguage($language, null, (bool) Setting::getCached()->db_loader);
+            });
+            $this->info('Download finished.');
+        } finally {
+            $lock->release();
         }
-        $this->info('Start language export to file.');
-        $exportTranslationService = resolve(ExportTranslationService::class);
-        Language::query()->each(function (Language $language) use ($exportTranslationService) {
-            $this->info('Exporting language : ' . $language->code . ' to file.');
-            $exportTranslationService->forceExportTranslationForLanguage($language, null, (bool) Setting::getCached()->db_loader);
-        });
-        $this->info('Download finished.');
     }
 
     /**

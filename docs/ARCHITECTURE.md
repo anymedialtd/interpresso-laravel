@@ -54,11 +54,22 @@ Controllers dispatch Laravel batches using configured queue and batch names. The
 shared `Services/Traits/ChecksForRunningJobs` supports both controllers (session
 flash) and console commands (terminal messages). All translation mutations are
 subject to this guard; modal reads and draft suggestions do not write data.
+`Services/ProcessLock` grants entry with a single conditional UPDATE of the settings
+row, on the package connection. Reads bypass cached settings. Each invocation has
+an owner (host, PID, operation, nonce), start time and expiring lease. Release and
+heartbeat match the owning invocation, so delayed callbacks cannot clear a
+successor. `BatchProcessor::dispatch()` transfers the handle to serialized batch
+callbacks; entry points release their remaining ownership in `finally`. Deferred
+API exports transfer ownership before the response and release on dispatch errors.
+Job middleware heartbeats and refuses obsolete leases. Import service heartbeats
+run between files/model chunks. Batch cancellation releases captured batch handles
+only, while `interpresso:unlock` handles expired/forced operational cleanup. The old
+`Setting::setJobsRunning()` boolean writer is replaced by this one mechanism.
 
 Translations are imported from PHP/JSON files or configured models into DB records.
 Approved translations are served by the default database loader, or exported in file
 mode. Model exports remain available in either mode. Multi-host propagation is opt-in
-and the inter-host API contract is unchanged.
+and the inter-host busy API includes owner, start, expiry, and separate queue status.
 
 Settings cache refreshes update loader selection. Translation caches use a shared
 version and targeted invalidation. Bulk writes bypassing model events call

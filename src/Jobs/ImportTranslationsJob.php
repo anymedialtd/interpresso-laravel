@@ -13,6 +13,6 @@ class ImportTranslationsJob extends BaseJob
      */
     public function handle(): void
     {
-        resolve(ImportTranslationService::class)->importTranslations($this->batch());
+        resolve(ImportTranslationService::class)->importTranslations($this->batch(), $this->processLock());
     }
 }

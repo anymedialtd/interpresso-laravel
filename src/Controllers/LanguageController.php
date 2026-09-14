@@ -73,97 +73,117 @@ class LanguageController extends BaseController
 
     public function importLanguages(BatchProcessor $processor): RedirectResponse
     {
-        if (!$this->anotherJobIsRunning()) {
-            /** @var list<int> $ids Auto-incrementing language IDs. */
-            $ids = Language::pluck('id')->all();
-            $batch = $processor->dispatch([new ImportLanguagesJob()], then: function () use ($ids): void {
-                Translator::notifyAdminImportedLanguages($ids);
-            });
-            session()->flash('batch_id', $batch->id);
+        if (($lock = $this->acquireProcessLock('import languages')) !== null) {
+            try {
+                /** @var list<int> $ids Auto-incrementing language IDs. */
+                $ids = Language::pluck('id')->all();
+                $batch = $processor->dispatch([new ImportLanguagesJob()], lock: $lock, then: function () use ($ids): void {
+                    Translator::notifyAdminImportedLanguages($ids);
+                });
+                session()->flash('batch_id', $batch->id);
+            } finally {
+                $lock->release();
+            }
         }
         return redirect()->route('interpresso.languages');
     }
 
     public function importTranslations(BatchProcessor $processor): RedirectResponse
     {
-        if (!$this->anotherJobIsRunning()) {
-            $languages = Language::query()->when(Setting::getCached()->import_only_from_root_language,
-                fn ($query) => $query->where('code', config('app.locale')))->get();
-            $totals = $languages->mapWithKeys(fn (Language $language): array => [$language->code => $language->translations()->count()]);
-            $batch = $processor->dispatch([new ImportTranslationsJob()], then: function () use ($totals, $languages): void {
-                foreach ($languages as $language) {
-                    Translator::notifyAdminImportedTranslations($totals[$language->code] ?? 0, $language);
-                }
-            });
-            session()->flash('batch_id', $batch->id);
+        if (($lock = $this->acquireProcessLock('import translations')) !== null) {
+            try {
+                $languages = Language::query()->when(Setting::getCached()->import_only_from_root_language,
+                    fn ($query) => $query->where('code', config('app.locale')))->get();
+                $totals = $languages->mapWithKeys(fn (Language $language): array => [$language->code => $language->translations()->count()]);
+                $batch = $processor->dispatch([new ImportTranslationsJob()], lock: $lock, then: function () use ($totals, $languages): void {
+                    foreach ($languages as $language) {
+                        Translator::notifyAdminImportedTranslations($totals[$language->code] ?? 0, $language);
+                    }
+                });
+                session()->flash('batch_id', $batch->id);
+            } finally {
+                $lock->release();
+            }
         }
         return redirect()->route('interpresso.languages');
     }
 
     public function findMissingTranslations(BatchProcessor $processor): RedirectResponse
     {
-        if (!$this->anotherJobIsRunning()) {
-            $languages = Language::all();
-            $totals = $languages->mapWithKeys(fn (Language $language): array => [$language->code => $language->translations()->count()]);
-            $batch = $processor->dispatch([new FindMissingTranslationsJob()], then: function () use ($totals, $languages): void {
-                foreach ($languages as $language) {
-                    Translator::notifyAdminImportedMissingTranslations($totals[$language->code] ?? 0, $language);
-                }
-            });
-            session()->flash('batch_id', $batch->id);
+        if (($lock = $this->acquireProcessLock('find missing translations')) !== null) {
+            try {
+                $languages = Language::all();
+                $totals = $languages->mapWithKeys(fn (Language $language): array => [$language->code => $language->translations()->count()]);
+                $batch = $processor->dispatch([new FindMissingTranslationsJob()], lock: $lock, then: function () use ($totals, $languages): void {
+                    foreach ($languages as $language) {
+                        Translator::notifyAdminImportedMissingTranslations($totals[$language->code] ?? 0, $language);
+                    }
+                });
+                session()->flash('batch_id', $batch->id);
+            } finally {
+                $lock->release();
+            }
         }
         return redirect()->route('interpresso.languages');
     }
 
     public function approveAllLanguagesTranslations(BatchProcessor $processor): RedirectResponse
     {
-        if ($this->anotherJobIsRunning()) {
+        if (($lock = $this->acquireProcessLock('approve translations for all languages')) === null) {
             return redirect()->route('interpresso.languages');
         }
-        $languages = Language::query()->whereHas('translations', fn ($query) => $query->where('approved', false))->get();
-        if ($languages->isEmpty()) {
-            Toast::flash(__('interpresso::translations.nothing_approved'), 'INFO');
-        } else {
-            $jobs = [];
-            $totals = [];
-            foreach ($languages as $language) {
-                $jobs[] = new ApproveLanguagesJob($language, $this->authUser()->id);
-                $totals[$language->code] = $language->translations()->where('approved', false)->count();
-            }
-            $batch = $processor->dispatch($jobs, then: function () use ($totals, $languages): void {
+        try {
+            $languages = Language::query()->whereHas('translations', fn ($query) => $query->where('approved', false))->get();
+            if ($languages->isEmpty()) {
+                Toast::flash(__('interpresso::translations.nothing_approved'), 'INFO');
+            } else {
+                $jobs = [];
+                $totals = [];
                 foreach ($languages as $language) {
-                    Translator::notifyAdminApprovedTranslationsPerLanguage($totals[$language->code] ?? 0, $language);
+                    $jobs[] = new ApproveLanguagesJob($language, $this->authUser()->id);
+                    $totals[$language->code] = $language->translations()->where('approved', false)->count();
                 }
-            });
-            session()->flash('batch_id', $batch->id);
+                $batch = $processor->dispatch($jobs, lock: $lock, then: function () use ($totals, $languages): void {
+                    foreach ($languages as $language) {
+                        Translator::notifyAdminApprovedTranslationsPerLanguage($totals[$language->code] ?? 0, $language);
+                    }
+                });
+                session()->flash('batch_id', $batch->id);
+            }
+            return redirect()->route('interpresso.languages');
+        } finally {
+            $lock->release();
         }
-        return redirect()->route('interpresso.languages');
     }
 
     public function exportTranslationsForAllLanguages(Request $request, BatchProcessor $processor): RedirectResponse
     {
-        if ($this->anotherJobIsRunning()) {
+        if (($lock = $this->acquireProcessLock('export translations for all languages')) === null) {
             return redirect()->route('interpresso.languages');
         }
-        $onlyModels = $request->boolean('exportOnlyModels');
-        $query = Translation::query()->isUpdated(false)->exported(false)->approved()
-            ->when($onlyModels, fn ($query) => $query->type('model'));
-        $total = (clone $query)->count();
-        $languages = Language::query()->whereIn('id', $query->distinct()->pluck('language_id'))->get();
-        if ($languages->isEmpty()) {
-            Toast::flash(__('interpresso::translations.nothing_exported'), 'INFO');
-        } else {
-            $jobs = [];
-            foreach ($languages as $language) {
-                $jobs[] = new ExportTranslationJob($language, $onlyModels);
+        try {
+            $onlyModels = $request->boolean('exportOnlyModels');
+            $query = Translation::query()->isUpdated(false)->exported(false)->approved()
+                ->when($onlyModels, fn ($query) => $query->type('model'));
+            $total = (clone $query)->count();
+            $languages = Language::query()->whereIn('id', $query->distinct()->pluck('language_id'))->get();
+            if ($languages->isEmpty()) {
+                Toast::flash(__('interpresso::translations.nothing_exported'), 'INFO');
+            } else {
+                $jobs = [];
+                foreach ($languages as $language) {
+                    $jobs[] = new ExportTranslationJob($language, $onlyModels);
+                }
+                $batch = $processor->dispatch($jobs, lock: $lock, then: function () use ($total, $languages): void {
+                    Translator::notifyAdminExportedTranslationsAllLanguages($total, $languages);
+                    resolve(ExportTranslationService::class)->exportTranslationsOnOtherHosts();
+                });
+                session()->flash('batch_id', $batch->id);
             }
-            $batch = $processor->dispatch($jobs, then: function () use ($total, $languages): void {
-                Translator::notifyAdminExportedTranslationsAllLanguages($total, $languages);
-                resolve(ExportTranslationService::class)->exportTranslationsOnOtherHosts();
-            });
-            session()->flash('batch_id', $batch->id);
+            return redirect()->route('interpresso.languages');
+        } finally {
+            $lock->release();
         }
-        return redirect()->route('interpresso.languages');
     }
 
     public function deleteJobs(BatchService $service): RedirectResponse
@@ -180,9 +200,6 @@ class LanguageController extends BaseController
                 }
                 return $requests;
             });
-        }
-        if ($jobs + $batches > 0 || !$this->anotherJobIsRunning()) {
-            Setting::setJobsRunning(false);
         }
         Toast::flash($jobs + $batches > 0
             ? __('interpresso::global.jobs.delete_success', compact('jobs', 'batches'))

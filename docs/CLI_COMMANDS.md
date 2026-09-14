@@ -1,10 +1,12 @@
 # CLI Commands
 
-This reference matches the eight commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
+This reference matches the nine commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
 
 ## Execution and Settings
 
-`interpresso:import-languages`, `interpresso:import-translations`, `interpresso:find-missing-translations`, and `interpresso:export-translations` run their services synchronously. They first check local package jobs and unfinished, uncancelled batches, and configured peers when `enable_multi_host` is enabled. If busy, they print `Another Process is running.` and return without doing the requested work. That early return is not a successful import/export. These commands maintain the internal `process_running` setting and clear it on success or failure, including PHP errors, but the guard checks queue/batch records.
+All eight working commands check the local advisory lock, package jobs, unfinished uncancelled batches, and configured peers when multi-host is enabled. They acquire the settings lease with one conditional database UPDATE before work starts, including under `QUEUE_CONNECTION=sync` and cron. A busy command reports the owner (host, PID, operation and invocation ID) and start time, then returns without doing work. Exceptions and PHP errors release the command's lease in `finally`.
+
+`interpresso.process_lock_ttl` defaults to 900 seconds and can be set with `INTERPRESSO_PROCESS_LOCK_TTL`. Expired leases and legacy flags without an expiry do not block acquisition. A long import renews its lease between files and model chunks through `ProcessLock::refresh()`; custom long-running operations should call `refresh()` on their acquired handle before the TTL elapses. Set the TTL above the longest uninterrupted unit of work. Separate databases still coordinate through best-effort HTTP checks, not a distributed atomic lock.
 
 The local guard queries `jobs` for `interpresso.queue_name` (default `languageProcessor`) and `job_batches` for `interpresso.batch_name` (default `languageBatch`) on the default database connection. Keep that connection consistent with the application's queue/batch setup. Unreachable or non-success peer responses are ignored during the busy check.
 
@@ -18,7 +20,7 @@ New installations use `db_loader=true`. Normal export and developer download pas
 
 DB-loader web rendering requires the database; the database-error file-loader fallback only applies during console loader registration under `runningInConsole()`, not later lookups. `CACHE_DRIVER` must not be `database` in DB mode; the same applies to `CACHE_STORE` when used by the host application. Use a non-database cache shared appropriately by web processes, workers, and participating hosts.
 
-The signatures below list all command-specific arguments/options. Only `interpresso:export-translations` declares a command-specific option; the other seven commands have none.
+The signatures below list all command-specific arguments/options. `interpresso:export-translations` has a value-taking `--force=` option, and `interpresso:unlock` has a boolean `--force` switch. The other seven commands have none.
 
 ## interpresso:import-languages
 
@@ -109,7 +111,7 @@ Signature:
 interpresso:export-translations-deployment
 ```
 
-Synchronously force-exports each language's approved, not-updated translations, including models, regardless of the Exported flag. It prints a completion line for every language, even if there are no eligible rows. It has no `--force` option, running-job guard, or inter-host export propagation.
+Synchronously force-exports each language's approved, not-updated translations, including models, regardless of the Exported flag. It prints a completion line for every language, even if there are no eligible rows. It uses the shared process guard. It has no `--force` option or inter-host export propagation.
 
 **This command does not honor `db_loader` as a model-only export selection.** It can write PHP/JSON files even when DB loading is enabled. Use it after a file-mode deployment replaces exported translation files. Run it only when overlapping bulk work has been ruled out.
 
@@ -129,7 +131,7 @@ interpresso:prune-batches
 
 Deletes rows from `job_batches` on `interpresso.db_connection` whose name equals `interpresso.batch_name` and whose `finished_at` or `cancelled_at` timestamp is older than `interpresso.prune_batch_hours`, default 24 hours.
 
-It does not cancel active batches, delete queue jobs, prune failed-job records, check for running work, or print a completion summary. It has no retention-hours option; change the config value to alter retention. Use it for recurring batch-record housekeeping. The package does not register an active schedule for it.
+It does not cancel active batches, delete queue jobs, prune failed-job records, or print a completion summary. It refuses to start while the shared process guard is busy. It has no retention-hours option; change the config value to alter retention. Use it for recurring batch-record housekeeping. The package does not register an active schedule for it.
 
 ```bash
 php artisan interpresso:prune-batches
@@ -147,7 +149,7 @@ This is the real signature of `SendAutomaticPendingNotifications`. There is no `
 
 When `enable_automatic_pending_notifications=true`, iterates every translator, including administrators, and each explicitly assigned language. A language with `needs_translation=true` rows produces queued database and mail notifications for that translator. Languages with zero requested rows produce no delivery. Administrators are not automatically notified for unassigned languages merely because their UI access covers all languages.
 
-When the toggle is false, the command does nothing. It does not consult `enable_pending_notifications`, check for running work, or print a result summary. Unapproved rows whose Needs Translation flag is false do not count as pending reminders.
+When the toggle is false, the command does nothing. It uses the shared process guard and does not consult `enable_pending_notifications` or print a result summary. Unapproved rows whose Needs Translation flag is false do not count as pending reminders.
 
 Use it for periodic reminders with the application's mail transport, queue worker, and a host-managed schedule. The package's scheduling code is inactive. Repeated runs can send repeated reminders for the same work.
 
@@ -173,13 +175,30 @@ The command performs these steps:
 4. Commits the database replacement and restores foreign-key checks.
 5. Force-exports approved, not-updated translations for every downloaded language. Local `db_loader=true` selects model-only export; file mode exports files and models.
 
-**Destructive local replacement:** use this only when intentionally replacing a development translation database. There is no confirmation prompt, merge mode, dry run, local-environment restriction, running-job guard, or host argument. Back up local work that must be retained. Settings, translator accounts, and language assignments are not downloaded; those local records are not synchronized to the source installation.
+**Destructive local replacement:** use this only when intentionally replacing a development translation database. There is no confirmation prompt, merge mode, dry run, local-environment restriction or host argument. The shared process guard applies. Back up local work that must be retained. Settings, translator accounts, and language assignments are not downloaded; those local records are not synchronized to the source installation.
 
 The database phase uses MySQL/MariaDB-specific `SET FOREIGN_KEY_CHECKS` statements and is not portable to SQLite or PostgreSQL as written. Its transaction does not cover file/model exports: export runs after commit, so export failure does not undo downloaded records. Model export also requires corresponding local model records and columns.
 
 ```bash
 php artisan interpresso:developer-download
 ```
+
+## interpresso:unlock
+
+Signature:
+
+```text
+interpresso:unlock {--force}
+```
+
+Prints the recorded owner and start time. Without `--force`, it clears expired or legacy leases and refuses a live lease with exit code 1. `--force` clears a live lease too. Successful release exits 0 and clears `process_running`, `process_owner`, `process_started_at` and `process_expires_at`. Clearing an already unlocked settings row is harmless. Expired-only cleanup uses a conditional UPDATE so a concurrent acquisition or heartbeat cannot be cleared.
+
+```bash
+php artisan interpresso:unlock
+php artisan interpresso:unlock --force
+```
+
+Unlock does not stop a PHP process, cancel queue records, or roll back changes. Stop or verify the old process before forcing a live lock. Existing queue/batch records can still block work; use **Delete running Batch (Jobs)** to cancel those. Cancellation releases only the cancelled batch's lease and does not unlock a separate cron run.
 
 ## Initial Load and Scheduled Operations
 

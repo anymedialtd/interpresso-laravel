@@ -52,7 +52,7 @@ class MissingTranslationDataTest extends BaseTestCase
     public static function settingOperations(): array
     {
         return array_map(fn (string $method): array => [$method], [
-            'getCached', 'getFreshCached', 'setJobsRunning', 'multiHostEnabled', 'getDomains', 'import',
+            'getCached', 'getFreshCached', 'multiHostEnabled', 'getDomains', 'import',
         ]);
     }
 

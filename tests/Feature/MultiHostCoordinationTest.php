@@ -170,7 +170,7 @@ class MultiHostCoordinationTest extends BaseTestCase
     public function cancelling_without_local_work_also_sends_no_http_when_disabled(): void
     {
         $this->configureHosts(false);
-        Setting::setJobsRunning();
+        Setting::query()->update(['process_running' => true, 'process_expires_at' => null]);
         Http::fake();
 
         $this->actingAs(Translator::query()->firstOrFail())

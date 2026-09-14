@@ -138,7 +138,7 @@ class ConsoleCommandsTest extends BaseTestCase
         if ($batchOnly) DB::table('jobs')->delete();
         else DB::table('job_batches')->delete();
         $before = Translation::orderBy('id')->get()->toArray();
-        $this->artisan($command, $options)->expectsOutput('Another Process is running.')->assertExitCode(0);
+        $this->artisan($command, $options)->expectsOutput('Another process is running: ' . resolve(\AnyMedia\Interpresso\Services\ProcessLock::class)->description() . '.')->assertExitCode(0);
         $this->assertSame($before, Translation::orderBy('id')->get()->toArray());
         $this->assertSame(2, Language::count());
         $this->assertDatabaseCount('notifications', 0);
@@ -149,7 +149,7 @@ class ConsoleCommandsTest extends BaseTestCase
     public static function guardedCommands(): iterable
     {
         foreach ([false, true] as $batchOnly) {
-            foreach (['import-languages', 'import-translations', 'find-missing-translations', 'export-translations'] as $command) {
+            foreach (['import-languages', 'import-translations', 'find-missing-translations', 'export-translations', 'export-translations-deployment', 'developer-download', 'prune-batches', 'send-automatic-pending-translations-notification'] as $command) {
                 yield ['interpresso:' . $command, [], $batchOnly];
             }
             yield ['interpresso:export-translations', ['--force' => '0'], $batchOnly];
@@ -194,11 +194,15 @@ class ConsoleCommandsTest extends BaseTestCase
                 'finished_at' => $finished === null ? null : now()->addMinutes($finished)->timestamp,
                 'cancelled_at' => $cancelled === null ? null : now()->addMinutes($cancelled)->timestamp]));
         }
+        // Pruning now shares the gate with all other commands. Finish the fixture first.
+        DB::table('job_batches')->where('id', $template['id'])->update(['finished_at' => now()->timestamp]);
+        DB::table('jobs')->delete();
+        resolve(\AnyMedia\Interpresso\Services\ProcessLock::class)->forceRelease();
         $this->freezeTime();
         $this->artisan('interpresso:prune-batches')->assertExitCode(0);
         $this->assertEqualsCanonicalizing([$template['id'], 'recent', 'boundary', 'foreign'], DB::table('job_batches')->pluck('id')->all());
-        $this->assertDatabaseCount('jobs', 1);
-        $this->assertTrue(Setting::getCached()->process_running);
+        $this->assertDatabaseCount('jobs', 0);
+        $this->assertFalse(Setting::getCached()->process_running);
     }
 
     #[Test]

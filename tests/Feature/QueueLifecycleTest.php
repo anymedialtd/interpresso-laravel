@@ -100,7 +100,8 @@ class QueueLifecycleTest extends BaseTestCase
         $jobs = DB::table('jobs')->get()->toArray();
         $batches = DB::table('job_batches')->get()->toArray();
         $this->post(route($name, $params), $data)->assertRedirect()
-            ->assertSessionHas('toast.message', __('interpresso::global.import.processing_no_action'))
+            ->assertSessionHas('toast.message', __('interpresso::global.import.processing_no_action') . ' '
+                . resolve(\AnyMedia\Interpresso\Services\ProcessLock::class)->description() . '.')
             ->assertSessionHas('toast.type', 'WARNING');
         $this->assertSame($before, Translation::orderBy('id')->get()->toArray());
         $this->assertEquals($jobs, DB::table('jobs')->get()->toArray());

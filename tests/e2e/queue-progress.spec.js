@@ -86,7 +86,7 @@ test('the busy warning refuses a real UI action and cancellation prevents its qu
     const [batch] = rows('SELECT id FROM job_batches');
     await openTranslations(page);
     await submit(page, tableRow(page, 'checkout').getByRole('button', { name: 'Approve', exact: true }));
-    await expect(page.getByText('A process is running in the background, no action allowed. Wait until the task finishes.', { exact: true })).toBeVisible();
+    await expect(page.getByText(/A process is running in the background, no action allowed.*approve translations for all languages.*started/)).toBeVisible();
     expect(rows('SELECT approved FROM {translations} WHERE approved = 0')).toHaveLength(4);
     await page.getByRole('navigation').getByRole('link', { name: 'Languages', exact: true }).click();
     await submit(page, page.getByRole('button', { name: 'Delete running Batch (Jobs)', exact: true }));

@@ -4,6 +4,7 @@ namespace AnyMedia\Interpresso\Console\Commands;
 
 
 use Illuminate\Console\Command;
+use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use Illuminate\Support\Facades\DB;
 use AnyMedia\Interpresso\Models\Language;
 use AnyMedia\Interpresso\Models\Setting;
@@ -12,6 +13,7 @@ use AnyMedia\Interpresso\Notifications\PendingTranslationsNotification;
 
 class SendAutomaticPendingNotifications extends Command
 {
+    use ChecksForRunningJobs;
     /**
      * The name and signature of the console command.
      *
@@ -31,12 +33,17 @@ class SendAutomaticPendingNotifications extends Command
      */
     public function handle(): void
     {
-        if(Setting::getCached()->enable_automatic_pending_notifications) {
-            Translator::query()->each(function (Translator $translator) {
-                $translator->languages()->each(function (Language $language) use ($translator) {
-                    $translator->notify(new PendingTranslationsNotification($language));
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
+        try {
+            if(Setting::getCached()->enable_automatic_pending_notifications) {
+                Translator::query()->each(function (Translator $translator) {
+                    $translator->languages()->each(function (Language $language) use ($translator) {
+                        $translator->notify(new PendingTranslationsNotification($language));
+                    });
                 });
-            });
+            }
+        } finally {
+            $lock->release();
         }
     }
 }

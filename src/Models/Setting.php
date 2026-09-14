@@ -15,6 +15,9 @@ use AnyMedia\Interpresso\Exceptions\MissingSettingsException;
  * @property bool $enable_automatic_pending_notifications
  * @property bool $enable_open_ai_translations
  * @property bool $process_running
+ * @property string|null $process_owner
+ * @property \Illuminate\Support\Carbon|null $process_started_at
+ * @property \Illuminate\Support\Carbon|null $process_expires_at
  * @property bool $enable_multi_host
  * @property string|null $domains
  * @property bool $import_only_from_root_language
@@ -52,6 +55,8 @@ class Setting extends Model
         'enable_automatic_pending_notifications' => 'boolean',
         'enable_open_ai_translations' => 'boolean',
         'process_running' => 'boolean',
+        'process_started_at' => 'datetime',
+        'process_expires_at' => 'datetime',
         'enable_multi_host' => 'boolean',
         'import_only_from_root_language' => 'boolean',
         'allow_deleting_languages' => 'boolean',
@@ -128,15 +133,6 @@ class Setting extends Model
         Cache::forget($cachePrefix . '_settings');
         Cache::forget($cachePrefix . '_has_db_loader_on');
         return self::getCached();
-    }
-
-    public static function setJobsRunning(bool $value = true): Setting
-    {
-        $setting = Setting::first() ?? throw new MissingSettingsException();
-        $setting->process_running = $value;
-        $setting->save();
-        self::getFreshCached();
-        return $setting;
     }
 
     public static function multiHostEnabled(): bool

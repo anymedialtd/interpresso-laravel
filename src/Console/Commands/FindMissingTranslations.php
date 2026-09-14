@@ -5,7 +5,6 @@ namespace AnyMedia\Interpresso\Console\Commands;
 use Illuminate\Console\Command;
 use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use AnyMedia\Interpresso\Models\Language;
-use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translation;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\MissingTranslationService;
@@ -32,9 +31,8 @@ class FindMissingTranslations extends Command
      */
     public function handle(MissingTranslationService $missingTranslationService): void
     {
-        if($this->anotherJobIsRunning(true)) return;
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
         try {
-            Setting::setJobsRunning();
 
             /** @var list<int|numeric-string> $total SQL COUNT results, whose scalar type depends on the driver. */
             $total = Translation::selectRaw('count(*) as total')->groupBy('language_id')->orderBy('language_id')->pluck('total')->all();
@@ -60,7 +58,7 @@ class FindMissingTranslations extends Command
                 $this->info('Everything up to date.');
             }
         } finally {
-            Setting::setJobsRunning(false);
+            $lock->release();
         }
     }
 }

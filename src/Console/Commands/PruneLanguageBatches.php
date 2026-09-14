@@ -4,11 +4,13 @@ namespace AnyMedia\Interpresso\Console\Commands;
 
 
 use Illuminate\Console\Command;
+use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 class PruneLanguageBatches extends Command
 {
+    use ChecksForRunningJobs;
     /**
      * The name and signature of the console command.
      *
@@ -28,14 +30,19 @@ class PruneLanguageBatches extends Command
      */
     public function handle(): void
     {
-        /** @var string|\UnitEnum|null $connection Configured database connection name. */
-        $connection = config('interpresso.db_connection');
-        DB::connection($connection)->table('job_batches')->where('name', config('interpresso.batch_name'))
-            ->where(function (Builder $query) {
-                /** @var int|float $hours Retention interval from config/interpresso.php. */
-                $hours = config('interpresso.prune_batch_hours');
-                $query->where('finished_at', '<', now()->subHours($hours)->timestamp)
-                    ->orWhere('cancelled_at', '<', now()->subHours($hours)->timestamp);
-            })->delete();
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
+        try {
+            /** @var string|\UnitEnum|null $connection Configured database connection name. */
+            $connection = config('interpresso.db_connection');
+            DB::connection($connection)->table('job_batches')->where('name', config('interpresso.batch_name'))
+                ->where(function (Builder $query) {
+                    /** @var int|float $hours Retention interval from config/interpresso.php. */
+                    $hours = config('interpresso.prune_batch_hours');
+                    $query->where('finished_at', '<', now()->subHours($hours)->timestamp)
+                        ->orWhere('cancelled_at', '<', now()->subHours($hours)->timestamp);
+                })->delete();
+        } finally {
+            $lock->release();
+        }
     }
 }

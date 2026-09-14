@@ -13,6 +13,7 @@ use AnyMedia\Interpresso\InterpressoServiceProvider;
 use AnyMedia\Interpresso\Models\Language;
 use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translation;
+use AnyMedia\Interpresso\Services\ProcessLock;
 
 // Separate opt-in suite. The ordinary PHPUnit suite remains SQLite in memory.
 class ReleaseDatabaseTest extends TestCase
@@ -69,7 +70,7 @@ class ReleaseDatabaseTest extends TestCase
         if (Schema::hasIndex($table, 'interpresso_translations_language_id_foreign')) {
             Schema::table($table, fn ($blueprint) => $blueprint->dropIndex('interpresso_translations_language_id_foreign'));
         }
-        $this->artisan('migrate:rollback', ['--step' => 3, '--force' => true])->assertExitCode(0);
+        $this->artisan('migrate:rollback', ['--step' => 4, '--force' => true])->assertExitCode(0);
         $this->assertFalse(Schema::hasIndex($table, 'ltr_lang_approved_idx'));
         $this->assertTrue(Schema::hasIndex($table, 'interpresso_translations_language_id_foreign'));
         $this->assertNotEmpty(Schema::getForeignKeys($table));
@@ -98,6 +99,31 @@ class ReleaseDatabaseTest extends TestCase
         $second = array_replace($first, ['id' => $row->id + 1, 'key' => 'nested.second', 'shared_identifier' => 'download-second', 'value' => 'Remote second']);
         $row->update(['value' => 'Local work to replace']);
         return [$language->getAttributes(), $first, $second];
+    }
+
+    #[Test]
+    public function process_lock_migration_and_lease_lifecycle_work_on_mysql(): void
+    {
+        $migration = require dirname(__DIR__, 2) . '/database/migrations/2026_09_14_000000_add_process_lock_to_settings_table.php';
+        $table = config('interpresso.table_settings');
+        $migration->down();
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn($table, 'process_owner'));
+        $migration->up();
+        $migration->up();
+        $this->assertTrue(Schema::hasColumns($table, ['process_owner', 'process_started_at', 'process_expires_at']));
+        $first = new ProcessLock();
+        $second = new ProcessLock();
+        $this->assertTrue($first->acquire('mysql:123 import', 900));
+        $this->assertFalse($second->acquire('mysql:456 export', 900));
+        $first->refresh(); // Includes an unchanged heartbeat in the same second.
+        $first->release();
+        $this->assertTrue($second->releaseExpired()); // Already clear on MySQL too.
+        $this->assertTrue($second->acquire('mysql:456 export', 900));
+        $first->release();
+        $this->assertTrue($second->isLocked());
+        $second->release();
+        $this->assertNull($second->current());
     }
 
     #[Test]

@@ -108,10 +108,19 @@ if ($scenario === 'notifications') {
 }
 
 if ($scenario === 'running') {
-    $batch = Bus::batch([])->name(config('interpresso.batch_name'))->dispatch();
+    $lock = resolve(\AnyMedia\Interpresso\Services\ProcessLock::class);
+    $lock->acquire('e2e-host:123 fixture batch', 900);
+    $batch = Bus::batch([])->withOption('process_lock', $lock)->name(config('interpresso.batch_name'))->dispatch();
     DB::table('job_batches')->where('id', $batch->id)->update(['total_jobs' => 2, 'pending_jobs' => 1, 'finished_at' => null]);
     DB::table('jobs')->insert(['queue' => config('interpresso.queue_name'), 'payload' => '{}', 'attempts' => 0, 'available_at' => time(), 'created_at' => time()]);
-    Setting::setJobsRunning(true);
+}
+
+if (in_array($scenario, ['locked', 'expired-lock'], true)) {
+    $lock = resolve(\AnyMedia\Interpresso\Services\ProcessLock::class);
+    $lock->acquire('cron-host:123 import translations', 900);
+    if ($scenario === 'expired-lock') {
+        Setting::query()->update(['process_started_at' => now()->subHour(), 'process_expires_at' => now()->subSecond()]);
+    }
 }
 
 if ($scenario === 'pagination') {
@@ -154,6 +163,6 @@ if ($scenario === 'queued') {
     File::put(__DIR__ . '/.data/queue-connection', 'database');
 }
 
-if (!in_array($scenario, ['base', 'filters', 'examples', 'bulk', 'imports', 'notifications', 'running', 'pagination', 'models', 'queued'], true)) {
+if (!in_array($scenario, ['base', 'filters', 'examples', 'bulk', 'imports', 'notifications', 'running', 'locked', 'expired-lock', 'pagination', 'models', 'queued'], true)) {
     throw new RuntimeException('Unknown E2E fixture scenario: ' . $scenario);
 }

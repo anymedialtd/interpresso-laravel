@@ -12,6 +12,18 @@ class BatchService {
      */
     public function deleteBatches(): array
     {
+        // Capture the batch's handle before cancellation. Never clear a cron lease
+        // or a replacement batch that starts while these records are removed.
+        $locks = [];
+        foreach (DB::table('job_batches')->where('name', config('interpresso.batch_name'))
+            ->whereNull('cancelled_at')->whereNull('finished_at')->pluck('id') as $id) {
+            if (is_string($id)) {
+                $lock = Bus::findBatch($id)?->options['process_lock'] ?? null;
+                if ($lock instanceof ProcessLock) {
+                    $locks[] = $lock;
+                }
+            }
+        }
         $batches = DB::table('job_batches')
             ->where('name', config('interpresso.batch_name'))
             ->whereNull('cancelled_at')
@@ -20,6 +32,10 @@ class BatchService {
         $jobs = DB::table('jobs')
             ->where('queue', config('interpresso.queue_name'))
             ->delete();
+        foreach ($locks as $lock) {
+            $lock->release();
+        }
+        resolve(ProcessLock::class)->releaseExpired();
         return [$jobs, $batches];
 
     }

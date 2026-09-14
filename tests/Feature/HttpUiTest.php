@@ -182,23 +182,27 @@ class HttpUiTest extends BaseTestCase
     }
 
     #[Test]
-    public function bulk_actions_dispatch_batches_and_flash_their_ids(): void
+    #[DataProvider('bulkActions')]
+    public function bulk_actions_dispatch_batches_and_flash_their_ids(string $action, string $job): void
     {
         Bus::fake();
         $row = $this->createTranslation('pending approval');
         $row->update(['approved' => false]);
-        foreach (['import-languages', 'import-translations', 'find-missing', 'approve'] as $action) {
-            $this->post(route('interpresso.languages.' . $action))->assertRedirect()->assertSessionHas('batch_id');
-        }
-        Bus::assertBatchCount(4);
-        foreach ([
-            \AnyMedia\Interpresso\Jobs\ImportLanguagesJob::class,
-            \AnyMedia\Interpresso\Jobs\ImportTranslationsJob::class,
-            \AnyMedia\Interpresso\Jobs\FindMissingTranslationsJob::class,
-            \AnyMedia\Interpresso\Jobs\ApproveLanguagesJob::class,
-        ] as $job) {
-            Bus::assertBatched(fn ($batch) => $batch->name === config('interpresso.batch_name') && $batch->jobs->first() instanceof $job);
-        }
+        // A fake never invokes completion callbacks, so each action gets its own
+        // fixture instead of pretending four unfinished batches can overlap.
+        $this->post(route('interpresso.languages.' . $action))->assertRedirect()->assertSessionHas('batch_id');
+        Bus::assertBatchCount(1);
+        Bus::assertBatched(fn ($batch) => $batch->name === config('interpresso.batch_name') && $batch->jobs->first() instanceof $job);
+    }
+
+    public static function bulkActions(): array
+    {
+        return [
+            ['import-languages', \AnyMedia\Interpresso\Jobs\ImportLanguagesJob::class],
+            ['import-translations', \AnyMedia\Interpresso\Jobs\ImportTranslationsJob::class],
+            ['find-missing', \AnyMedia\Interpresso\Jobs\FindMissingTranslationsJob::class],
+            ['approve', \AnyMedia\Interpresso\Jobs\ApproveLanguagesJob::class],
+        ];
     }
 
     private function createTranslation(string $value): Translation

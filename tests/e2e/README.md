@@ -8,7 +8,7 @@ npm run production
 npx playwright test
 ```
 
-The suite currently declares 115 tests in 16 spec files. The complete [form/control inventory and verification report](../../docs/FORM_CONTROL_AUDIT.md) maps every form, field, dropdown, modal, action form and navigation control to its route and coverage.
+The suite currently declares 120 tests in 18 spec files. The complete [form/control inventory and verification report](../../docs/FORM_CONTROL_AUDIT.md) maps every form, field, dropdown, modal, action form and navigation control to its route and coverage.
 
 ## Required health fixture
 
@@ -30,7 +30,7 @@ The base fixture supplies:
 - Regular translator `translator@example.test` / `translator-password`, assigned English.
 - English and German; six English translations with distinct boolean states; deletion enabled.
 
-Use `test.use({ fixtureScenario: '...' })` for actor/type filters, examples, imports, bulk actions, notifications, running jobs, pagination or model exports. `fixtures.php` is also exercised through PHPUnit HTTP tests. Seeding must reach its completion marker; Tinker sometimes exits successfully after printing an exception, so the helper checks the marker explicitly.
+Use `test.use({ fixtureScenario: '...' })` for actor/type filters, examples, imports, bulk actions, notifications, running jobs, live/expired cron locks, pagination or model exports. `fixtures.php` is also exercised through PHPUnit HTTP tests. Seeding must reach its completion marker; Tinker sometimes exits successfully after printing an exception, so the helper checks the marker explicitly.
 
 Jobs execute synchronously through real controllers/services. Import/export tests read real files; model export tests inspect the actual disposable JSON column after submitting the UI form. Mail uses the in-memory array transport. AI uses a deterministic external-service double, and suggestion timing/error cases intercept that response only. These tests do not send email or contact a paid AI service.
 
@@ -58,3 +58,7 @@ rows, notifications, completion, recovery after a fresh page load, stopped polli
 and cancellation. Other scenarios keep synchronous queue execution. The queue marker
 is removed on every fixture reset. No queue/progress HTTP response is mocked in
 these completion tests.
+
+`process-lock.spec.js` exercises a live cron lease with empty queue tables and an
+expired lease followed by a synchronous UI batch. It verifies the owner/start
+warning, refusal to write, and clearing of every lock column after completion.

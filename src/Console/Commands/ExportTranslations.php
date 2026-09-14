@@ -36,9 +36,8 @@ class ExportTranslations extends Command
     public function handle(ExportTranslationService $exportTranslationService): void
     {
         $forceExport = (bool) $this->option('force');
-        if($this->anotherJobIsRunning(true)) return;
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
         try {
-            Setting::setJobsRunning();
             $languages = Language::find(Translation::query()
                 ->isUpdated(false)
                 ->when(!$forceExport, function($query) {
@@ -75,7 +74,7 @@ class ExportTranslations extends Command
                 $this->info('Nothing to export.');
             }
         } finally {
-            Setting::setJobsRunning(false);
+            $lock->release();
         }
     }
 

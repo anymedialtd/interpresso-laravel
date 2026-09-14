@@ -67,6 +67,14 @@ In `config/openai.php`:
 - `queue_name` (default: `languageProcessor`)
 - `batch_name` (default: `languageBatch`)
 - `prune_batch_hours` (default: `24`)
+- `process_lock_ttl` (default: `900` seconds, `INTERPRESSO_PROCESS_LOCK_TTL`)
+
+The database advisory lease coordinates cron, artisan, sync requests and queued
+batches on `interpresso.db_connection`. Long imports heartbeat between files and
+model chunks. Custom long operations should call `refresh()` on the acquired
+`ProcessLock` handle before expiry; set the TTL above their longest uninterrupted
+step. Use `php artisan interpresso:unlock` to inspect/clear expired leases, or
+`--force` to clear a live lease after stopping the old process.
 
 ### Auth
 

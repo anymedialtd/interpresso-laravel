@@ -10,6 +10,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\SkipIfBatchCancelled;
 use Illuminate\Queue\SerializesModels;
 use AnyMedia\Interpresso\Jobs\Traits\HandlesFailedJobs;
+use AnyMedia\Interpresso\Jobs\Middleware\RefreshProcessLock;
+use AnyMedia\Interpresso\Services\ProcessLock;
 
 abstract class BaseJob implements ShouldQueue
 {
@@ -22,10 +24,16 @@ abstract class BaseJob implements ShouldQueue
         $this->onQueue($queue);
     }
 
-    /** @return list<SkipIfBatchCancelled> */
+    /** @return list<SkipIfBatchCancelled|RefreshProcessLock> */
     public function middleware(): array
     {
-        return [new SkipIfBatchCancelled()];
+        return [new SkipIfBatchCancelled(), new RefreshProcessLock()];
+    }
+
+    public function processLock(): ?ProcessLock
+    {
+        $lock = $this->batch()?->options['process_lock'] ?? null;
+        return $lock instanceof ProcessLock ? $lock : null;
     }
 
     /**

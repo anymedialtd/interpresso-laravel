@@ -16,6 +16,7 @@ use AnyMedia\Interpresso\Console\Commands\ImportLanguages;
 use AnyMedia\Interpresso\Console\Commands\ImportTranslations;
 use AnyMedia\Interpresso\Console\Commands\PruneLanguageBatches;
 use AnyMedia\Interpresso\Console\Commands\SendAutomaticPendingNotifications;
+use AnyMedia\Interpresso\Console\Commands\Unlock;
 use AnyMedia\Interpresso\Middleware\AuthApi;
 use AnyMedia\Interpresso\Middleware\AuthTranslator;
 use AnyMedia\Interpresso\Middleware\EncryptCookies;
@@ -212,6 +213,7 @@ class InterpressoServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PruneLanguageBatches::class,
+                Unlock::class,
                 ImportLanguages::class,
                 ImportTranslations::class,
                 FindMissingTranslations::class,

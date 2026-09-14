@@ -61,6 +61,11 @@ changes, batch completion and persisted administrator notifications.
 `QueueLifecycleTest` consumes real database jobs to check progress, cancellation,
 failures and every gated action. `ConsoleCommandsTest` exercises the seven portable
 commands, force variants, guards and actual database/mail notification delivery.
+`ProcessLockTest` adds expiry, ownership, unlock, cron/UI/API exclusion and real
+concurrent conditional UPDATEs. Its two PHP children share a temporary SQLite
+database and rendezvous at the SQL statement using pipes, without sleeps; the
+ordinary Testbench application remains in memory. The ninth command is
+`interpresso:unlock`.
 
 The eighth command, `interpresso:developer-download`, uses MySQL-specific foreign-key
 statements. Its success, pagination, file/DB modes and failure rollback are tested
@@ -97,3 +102,9 @@ notifications, and cancellation followed by an allowed mutation. The `queued`
 fixture selects database queueing through an E2E-only marker file; ordinary fixtures
 retain synchronous jobs. Browser tests also require permission to bind/connect to
 the local Testbench server and launch Chromium.
+
+Batch callers should use `BatchProcessor::dispatch()` or `dispatchAfterResponse()`
+so acquisition and failure cleanup cover dispatch itself. The old raw
+`execute()`/`PendingBatch` path is now internal. `Setting::setJobsRunning()` is
+replaced by the owned `ProcessLock` handle; call `release()` in `finally` for
+custom synchronous work and `refresh()` periodically for long operations.

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use AnyMedia\Interpresso\Services\Toast;
 use AnyMedia\Interpresso\Models\Setting;
+use AnyMedia\Interpresso\Services\ProcessLock;
 
 trait ChecksForRunningJobs
 {
@@ -15,8 +16,14 @@ trait ChecksForRunningJobs
     /** Checks if another job is running
      * @return bool
      */
-    protected function anotherJobIsRunning(bool $fromCommandLine = false): bool
+    protected function anotherJobIsRunning(bool $fromCommandLine = false, bool $checkOtherHosts = true): bool
     {
+        $lock = resolve(ProcessLock::class);
+        if ($lock->isLocked()) {
+            $this->jobIsRunningMessage($fromCommandLine, details: $lock->description());
+            return true;
+        }
+
         if (DB::table('jobs')
             ->where('queue', config('interpresso.queue_name'))
             ->exists() || DB::table('job_batches')->where('name', config('interpresso.batch_name'))
@@ -27,7 +34,7 @@ trait ChecksForRunningJobs
             return true;
         }
 
-        if (!Setting::multiHostEnabled()) {
+        if (!$checkOtherHosts || !Setting::multiHostEnabled()) {
             $this->jobIsRunningMessage($fromCommandLine, false);
             return false;
         }
@@ -52,7 +59,15 @@ trait ChecksForRunningJobs
 
                 try{
                     if((bool) $response->json('process_running', false)) {
-                        $this->jobIsRunningMessage($fromCommandLine);
+                        $expiresAt = $response->json('process_expires_at');
+                        if (is_string($expiresAt) && \Illuminate\Support\Carbon::parse($expiresAt)->lt(now()->startOfSecond())
+                            && !$response->json('queue_running', false)) {
+                            continue;
+                        }
+                        $owner = $response->json('process_owner');
+                        $startedAt = $response->json('process_started_at');
+                        $details = is_string($owner) ? $owner . ' (started ' . (is_string($startedAt) ? $startedAt : 'unknown') . ')' : null;
+                        $this->jobIsRunningMessage($fromCommandLine, details: $details);
                         return true;
                     }
                 } catch(\Exception $e) {
@@ -66,16 +81,30 @@ trait ChecksForRunningJobs
         return false;
     }
 
-    protected function jobIsRunningMessage(bool $fromCommandLine, bool $isRunning = true): void
+    /** Acquire after the advisory checks; only the conditional UPDATE grants entry. */
+    protected function acquireProcessLock(string $operation, bool $fromCommandLine = false, bool $checkOtherHosts = true): ?ProcessLock
+    {
+        if ($this->anotherJobIsRunning($fromCommandLine, $checkOtherHosts)) {
+            return null;
+        }
+        $lock = resolve(ProcessLock::class);
+        if (!$lock->acquire(ProcessLock::owner($operation), ProcessLock::defaultTtl())) {
+            $this->jobIsRunningMessage($fromCommandLine, details: $lock->description());
+            return null;
+        }
+        return $lock;
+    }
+
+    protected function jobIsRunningMessage(bool $fromCommandLine, bool $isRunning = true, ?string $details = null): void
     {
         if($fromCommandLine) {
             if($isRunning) {
-                $this->sendCommandInfo('Another Process is running.');
+                $this->sendCommandInfo($details === null ? 'Another Process is running.' : 'Another process is running: ' . $details . '.');
             }
         } else {
             if ($isRunning) {
                 Toast::flash(
-                    __('interpresso::global.import.processing_no_action'),
+                    __('interpresso::global.import.processing_no_action') . ($details === null ? '' : ' ' . $details . '.'),
                     'WARNING'
                 );
             } else {

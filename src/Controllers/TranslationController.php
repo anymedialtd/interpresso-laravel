@@ -172,9 +172,13 @@ class TranslationController extends BaseController
     {
         $translation = $this->resolveTranslation($id, $language);
         $value = $this->draft($request);
-        if (!$this->anotherJobIsRunning()) {
-            $this->saveDraft($translation, $value);
-            Toast::flash(__('interpresso::translations.update_success_message'), 'SUCCESS', 4000);
+        if (($lock = $this->acquireProcessLock('update translation')) !== null) {
+            try {
+                $this->saveDraft($translation, $value);
+                Toast::flash(__('interpresso::translations.update_success_message'), 'SUCCESS', 4000);
+            } finally {
+                $lock->release();
+            }
         }
         return $this->backToLanguage($language);
     }
@@ -184,35 +188,43 @@ class TranslationController extends BaseController
         $translation = $this->resolveTranslation($id, $language);
         abort_unless(Setting::getCached()->enable_open_ai_translations && $language->code === config('app.locale'), 403);
         $value = $this->draft($request);
-        if ($this->anotherJobIsRunning()) {
+        if (($lock = $this->acquireProcessLock('update translations for all languages')) === null) {
             return $this->backToLanguage($language);
         }
-        if ($translation->value !== $value) {
-            $jobs = [];
-            foreach ($this->examples($translation) as $example) {
-                if ($example->id !== $translation->id) {
-                    $jobs[] = new UpdateTranslationJob($language, $example, $value, $this->authUser());
+        try {
+            if ($translation->value !== $value) {
+                $jobs = [];
+                foreach ($this->examples($translation) as $example) {
+                    if ($example->id !== $translation->id) {
+                        $jobs[] = new UpdateTranslationJob($language, $example, $value, $this->authUser());
+                    }
                 }
+                $this->saveDraft($translation, $value);
+                if ($jobs !== []) {
+                    $batch = $processor->dispatch($jobs, lock: $lock, then: function () use ($translation): void {
+                        Translator::notifyAdminUpdatedAllLanguages($translation);
+                    });
+                    session()->flash('batch_id', $batch->id);
+                }
+                Toast::flash(__('interpresso::translations.update_success_message'), 'SUCCESS', 4000);
             }
-            $this->saveDraft($translation, $value);
-            if ($jobs !== []) {
-                $batch = $processor->dispatch($jobs, then: function () use ($translation): void {
-                    Translator::notifyAdminUpdatedAllLanguages($translation);
-                });
-                session()->flash('batch_id', $batch->id);
-            }
-            Toast::flash(__('interpresso::translations.update_success_message'), 'SUCCESS', 4000);
+            return $this->backToLanguage($language);
+        } finally {
+            $lock->release();
         }
-        return $this->backToLanguage($language);
     }
 
     public function approveTranslation(Language $language, int $id, ApproveLanguagesService $service): RedirectResponse
     {
         $translation = $this->resolveTranslation($id, $language);
-        if (!$this->anotherJobIsRunning()) {
-            $translation->update($service->approvedTranslationUpdateArray($this->authUser()->id));
-            $service->resetTranslationCache($translation);
-            Toast::flash('Translation approved.');
+        if (($lock = $this->acquireProcessLock('approve translation')) !== null) {
+            try {
+                $translation->update($service->approvedTranslationUpdateArray($this->authUser()->id));
+                $service->resetTranslationCache($translation);
+                Toast::flash('Translation approved.');
+            } finally {
+                $lock->release();
+            }
         }
         return $this->backToLanguage($language);
     }
@@ -230,9 +242,13 @@ class TranslationController extends BaseController
     private function setRequested(Language $language, int $id, bool $requested): RedirectResponse
     {
         $translation = $this->resolveTranslation($id, $language);
-        if (!$this->anotherJobIsRunning()) {
-            $translation->update(['needs_translation' => $requested, 'approved' => !$requested]);
-            Toast::flash($requested ? 'Translation requested.' : 'Translation request removed.');
+        if (($lock = $this->acquireProcessLock('change translation request')) !== null) {
+            try {
+                $translation->update(['needs_translation' => $requested, 'approved' => !$requested]);
+                Toast::flash($requested ? 'Translation requested.' : 'Translation request removed.');
+            } finally {
+                $lock->release();
+            }
         }
         return $this->backToLanguage($language);
     }
@@ -240,14 +256,20 @@ class TranslationController extends BaseController
     public function restoreTranslation(Language $language, int $id): RedirectResponse
     {
         $translation = $this->resolveTranslation($id, $language);
-        if (!$this->anotherJobIsRunning() && $translation->old_value !== null && !$translation->approved) {
-            $translation->update([
-                'value' => $translation->old_value, 'old_value' => null,
-                'approved_by' => $translation->previous_approved_by, 'updated_by' => $translation->previous_updated_by,
-                'previous_updated_by' => null, 'previous_approved_by' => null,
-                'approved' => true, 'exported' => true, 'updated_translation' => false,
-            ]);
-            Toast::flash('Translation restored.');
+        if (($lock = $this->acquireProcessLock('restore translation')) !== null) {
+            try {
+                if ($translation->old_value !== null && !$translation->approved) {
+                    $translation->update([
+                        'value' => $translation->old_value, 'old_value' => null,
+                        'approved_by' => $translation->previous_approved_by, 'updated_by' => $translation->previous_updated_by,
+                        'previous_updated_by' => null, 'previous_approved_by' => null,
+                        'approved' => true, 'exported' => true, 'updated_translation' => false,
+                    ]);
+                    Toast::flash('Translation restored.');
+                }
+            } finally {
+                $lock->release();
+            }
         }
         return $this->backToLanguage($language);
     }
@@ -255,39 +277,47 @@ class TranslationController extends BaseController
     public function approveAllTranslations(Language $language, BatchProcessor $processor): RedirectResponse
     {
         $this->authorizeLanguage($language);
-        if ($this->anotherJobIsRunning()) {
+        if (($lock = $this->acquireProcessLock('approve language translations')) === null) {
             return $this->backToLanguage($language);
         }
-        $total = $language->translations()->where('approved', false)->count();
-        if ($total > 0) {
-            $batch = $processor->dispatch([new ApproveLanguagesJob($language, $this->authUser()->id)], then: function () use ($total, $language): void {
-                Translator::notifyAdminApprovedTranslationsPerLanguage($total, $language);
-            });
-            session()->flash('batch_id', $batch->id);
-        } else {
-            Toast::flash(__('interpresso::translations.nothing_approved'), 'INFO');
+        try {
+            $total = $language->translations()->where('approved', false)->count();
+            if ($total > 0) {
+                $batch = $processor->dispatch([new ApproveLanguagesJob($language, $this->authUser()->id)], lock: $lock, then: function () use ($total, $language): void {
+                    Translator::notifyAdminApprovedTranslationsPerLanguage($total, $language);
+                });
+                session()->flash('batch_id', $batch->id);
+            } else {
+                Toast::flash(__('interpresso::translations.nothing_approved'), 'INFO');
+            }
+            return $this->backToLanguage($language);
+        } finally {
+            $lock->release();
         }
-        return $this->backToLanguage($language);
     }
 
     public function exportTranslationsForLanguage(Request $request, Language $language, BatchProcessor $processor): RedirectResponse
     {
         $this->authorizeLanguage($language);
-        if ($this->anotherJobIsRunning()) {
+        if (($lock = $this->acquireProcessLock('export language translations')) === null) {
             return $this->backToLanguage($language);
         }
-        $onlyModels = $request->boolean('exportOnlyModels');
-        $total = $language->translations()->isUpdated(false)->exported(false)->approved()
-            ->when($onlyModels, fn ($query) => $query->type('model'))->count();
-        if ($total > 0) {
-            $batch = $processor->dispatch([new ExportTranslationJob($language, $onlyModels)], then: function () use ($total, $language): void {
-                Translator::notifyAdminExportedTranslationsPerLanguage($total, $language);
-                resolve(ExportTranslationService::class)->exportTranslationsOnOtherHosts();
-            });
-            session()->flash('batch_id', $batch->id);
-        } else {
-            Toast::flash(__('interpresso::translations.nothing_exported'), 'INFO');
+        try {
+            $onlyModels = $request->boolean('exportOnlyModels');
+            $total = $language->translations()->isUpdated(false)->exported(false)->approved()
+                ->when($onlyModels, fn ($query) => $query->type('model'))->count();
+            if ($total > 0) {
+                $batch = $processor->dispatch([new ExportTranslationJob($language, $onlyModels)], lock: $lock, then: function () use ($total, $language): void {
+                    Translator::notifyAdminExportedTranslationsPerLanguage($total, $language);
+                    resolve(ExportTranslationService::class)->exportTranslationsOnOtherHosts();
+                });
+                session()->flash('batch_id', $batch->id);
+            } else {
+                Toast::flash(__('interpresso::translations.nothing_exported'), 'INFO');
+            }
+            return $this->backToLanguage($language);
+        } finally {
+            $lock->release();
         }
-        return $this->backToLanguage($language);
     }
 }

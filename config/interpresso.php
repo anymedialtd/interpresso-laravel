@@ -108,6 +108,10 @@ return [
 
     'batch_name' => 'languageBatch',
 
+    // Seconds before an abandoned process lock expires. Long imports should
+    // heartbeat through the acquired ProcessLock handle's refresh() method.
+    'process_lock_ttl' => env('INTERPRESSO_PROCESS_LOCK_TTL', 900),
+
     'prune_batch_hours' => 24, // Prunes all finished or cancelled batches older than this value (value in hours)
 
     /*

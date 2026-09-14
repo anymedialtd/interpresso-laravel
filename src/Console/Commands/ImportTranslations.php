@@ -6,7 +6,6 @@ namespace AnyMedia\Interpresso\Console\Commands;
 use Illuminate\Console\Command;
 use AnyMedia\Interpresso\Services\Traits\ChecksForRunningJobs;
 use AnyMedia\Interpresso\Models\Language;
-use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translation;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\ImportTranslationService;
@@ -34,23 +33,22 @@ class ImportTranslations extends Command
      */
     public function handle(ImportTranslationService $importTranslationService): void
     {
-        if($this->anotherJobIsRunning(true)) return;
+        if (($lock = $this->acquireProcessLock((string) $this->getName(), true)) === null) return;
 
         try {
-            Setting::setJobsRunning();
 
             $totalTranslationsBefore = Translation::count();
 
             $this->info('Existing Translations: ' . $totalTranslationsBefore . '.');
 
             $this->info('Importing translations...');
-            $importTranslationService->importTranslations();
+            $importTranslationService->importTranslations(lock: $lock);
 //            Translator::notifyAdminImportedTranslations($totalTranslationsBefore);
             $total = Translation::count() - $totalTranslationsBefore;
             $this->info('New translations imported: ' . $total . '.');
 
         } finally {
-            Setting::setJobsRunning(false);
+            $lock->release();
         }
     }
 }

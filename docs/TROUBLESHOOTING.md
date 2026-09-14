@@ -31,9 +31,23 @@ Symptoms:
 
 Checks:
 
-- Queue worker running
+- A worker running for an asynchronous queue; sync/cron translation work needs no worker
 - Queue tables exist (`jobs`, `job_batches`, `failed_jobs`)
 - queue name matches config (`interpresso.queue_name`)
+
+## A Process Lock Blocks Work
+
+The warning reports the owner (host, PID, operation) and start time. Inspect and
+clear an expired lease with `php artisan interpresso:unlock`. A live lease is
+refused unless `--force` is supplied. Stop or verify the old process before forcing
+release. Unlock does not terminate a process or remove queued jobs/batches.
+
+Expired leases and legacy `process_running=true` rows without expiry never block
+on their own. Long imports renew between files and model chunks; use the acquired
+`ProcessLock::refresh()` handle in custom long operations. Configure
+`INTERPRESSO_PROCESS_LOCK_TTL` above the longest uninterrupted step, default 900
+seconds. Use **Delete running Batch (Jobs)** for abandoned queued batches; it
+leaves an independent cron lease alone.
 
 ## Exports Not Writing Files
 
@@ -62,7 +76,7 @@ the insertion array uses string keys.
 
 ## Settings Row Missing
 
-`Setting::getCached()`, cache refreshes and job-state updates throw
+`Setting::getCached()` and cache refreshes throw
 `MissingSettingsException` when the settings table has no row. Restore the saved
 row on the configured connection/table, then refresh the settings cache. No default
 row is silently inserted. Loader registration uses Laravel's file loader while the
