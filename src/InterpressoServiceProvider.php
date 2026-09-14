@@ -18,6 +18,7 @@ use AnyMedia\Interpresso\Console\Commands\ImportTranslations;
 use AnyMedia\Interpresso\Console\Commands\PruneLanguageBatches;
 use AnyMedia\Interpresso\Console\Commands\SendAutomaticPendingNotifications;
 use AnyMedia\Interpresso\Console\Commands\Unlock;
+use AnyMedia\Interpresso\Console\Commands\Work;
 use AnyMedia\Interpresso\Middleware\AuthApi;
 use AnyMedia\Interpresso\Middleware\AuthTranslator;
 use AnyMedia\Interpresso\Middleware\EncryptCookies;
@@ -25,6 +26,7 @@ use AnyMedia\Interpresso\Middleware\SecurityHeaders;
 use AnyMedia\Interpresso\Models\Setting;
 use AnyMedia\Interpresso\Models\Translator;
 use AnyMedia\Interpresso\Services\OpenAITranslationService;
+use AnyMedia\Interpresso\Services\QueueConfiguration;
 
 
 class InterpressoServiceProvider extends ServiceProvider
@@ -65,14 +67,28 @@ class InterpressoServiceProvider extends ServiceProvider
         $this->loadAssets();
         $this->loadCommands();
 
-        // Delete Batches
-//        $this->app->booted(function () {
-//            $schedule = $this->app->make(Schedule::class);
-//            $schedule->command('interpresso:prune-batches')->everyMinute();
-//            if($this->settings && isset($this->settings->enable_automatic_pending_notifications) && $this->settings->enable_automatic_pending_notifications) {
-//                $schedule->command('interpresso:send-automatic-pending-translations-notification')->daily();
-//            }
-//        });
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            if (!QueueConfiguration::defersWork()) {
+                return;
+            }
+
+            // Run maintenance before starting a fresh worker so it can release
+            // its operation lease before newly queued jobs start executing.
+            if (config('interpresso.schedule.prune_batches', false)) {
+                $schedule->command('interpresso:prune-batches')->everyMinute()->withoutOverlapping();
+            }
+            if (config('interpresso.schedule.pending_notifications', false)) {
+                $schedule->command('interpresso:send-automatic-pending-translations-notification')->daily()->withoutOverlapping();
+            }
+            if (config('interpresso.schedule.queue_worker', false)) {
+                // Laravel's cache mutex prevents overlapping scheduled workers.
+                // ProcessLock is a separate DB lease guarding operations across
+                // HTTP, CLI and batch jobs; neither lock replaces the other.
+                $schedule->command('interpresso:work')->everyMinute()
+                    ->withoutOverlapping(QueueConfiguration::workerOverlapMinutes())
+                    ->runInBackground();
+            }
+        });
     }
 
     /**
@@ -214,6 +230,7 @@ class InterpressoServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PruneLanguageBatches::class,
+                Work::class,
                 Unlock::class,
                 ImportLanguages::class,
                 ImportTranslations::class,

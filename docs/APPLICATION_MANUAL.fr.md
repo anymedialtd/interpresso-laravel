@@ -32,6 +32,8 @@ Les nouvelles installations activent `db_loader` et désactivent la coordination
 php artisan queue:work --queue=languageProcessor
 ```
 
+Sur un hébergement mutualisé sans Supervisor, utilisez `QUEUE_CONNECTION=database` et activez `interpresso.schedule.queue_worker` avec [une ligne cron](#cron-without-supervisor). C'est la configuration recommandée ; les boutons fonctionnent normalement.
+
 Le stockage du cache et la connexion de file d'attente sont deux paramètres distincts. Une file reposant sur une base de données est compatible avec un cache utilisant un autre stockage.
 
 ### Se connecter et modifier le mot de passe par défaut {#sign-in-and-change-the-default-password}
@@ -209,7 +211,7 @@ Les neuf colonnes suivantes sont modifiables. Les valeurs par défaut décrivent
 - **`import_vendor`**, défaut `false` : inclut les espaces de noms des packages enregistrés dans l'importation. En mode base, si cette option est désactivée, leurs traductions continuent d'utiliser le chargeur de fichiers parent. Son activation les fait aussi charger depuis la base : importez-les avant de vous y fier. Utilisez-la pour faire gérer les textes des packages par les traducteurs. La désactivation ne supprime pas les entrées déjà importées et ne les exclut pas des exportations de fichiers.
 - **`enable_open_ai_translations`**, défaut `false` : active les appels OpenAI pour la création des traductions manquantes et les actions de l'éditeur, avec les boutons associés. Configurez d'abord l'intégration facultative. Cela ne traduit pas automatiquement toutes les entrées existantes et ne valide aucun texte généré ; sans intégration, le service continue de renvoyer son entrée.
 - **`enable_pending_notifications`**, défaut `false` : affiche l'action manuelle de rappel dans le formulaire du traducteur. Les administrateurs peuvent ainsi demander des rappels pour des comptes précis. Elle ne planifie aucun rappel et n'est pas vérifiée par la commande automatique.
-- **`enable_automatic_pending_notifications`**, défaut `false` : autorise la commande de rappels automatiques à parcourir les affectations explicites de chaque traducteur. Utilisez votre propre planification. Ce réglage est indépendant de `enable_pending_notifications` ; le package n'enregistre aucune planification active.
+- **`enable_automatic_pending_notifications`**, défaut `false` : autorise la commande automatique à parcourir les affectations explicites de chaque traducteur. Utilisez votre calendrier ou activez `interpresso.schedule.pending_notifications`. Ce réglage est indépendant de `enable_pending_notifications` ; la commande le vérifie à l'exécution.
 - **`import_only_from_root_language`**, défaut `false` : limite les importations de traductions, y compris modèles et packages, à la langue correspondant à `app.locale`. À utiliser quand les sources de cette langue font autorité et que les autres langues sont gérées dans l'interface. Cela ne restreint pas Importer les langues et ne supprime pas les entrées des autres langues. Rechercher les traductions manquantes peut ensuite créer leurs équivalents.
 - **`allow_deleting_languages`**, défaut `false` : affiche les actions de suppression de langue pour les administrateurs. Activez-le lorsque vous souhaitez supprimer des langues et leurs traductions. L'endpoint contrôle les droits d'administration et cet interrupteur.
 - **`enable_multi_host`**, défaut `false` : ajoute les vérifications de tâches sur les hôtes configurés et la propagation des exportations/annulations de l'interface. Laissez-le désactivé pour un projet unique. Les domaines enregistrés ne déclenchent alors aucune de ces requêtes. L'activation dans Paramètres exige un champ Domaines non vide. Les domaines déjà enregistrés et non vides sont activés par la migration de mise à niveau ; une liste définie uniquement dans l'environnement n'active pas la fonction.
@@ -293,13 +295,13 @@ Aucun traitement long de traduction n'est exécuté dans une requête HTTP, mêm
 
 Choisissez l'un des trois modes pris en charge :
 
-1. **Worker :** définissez `QUEUE_CONNECTION=database` (ou `redis`) et exécutez un worker supervisé consommant `languageProcessor` ou votre `interpresso.queue_name`. HTTP se contente de mettre les lots en file. L'exécution est limitée par `--timeout`, les limites mémoire/temps de PHP CLI et celles du gestionnaire de processus ou de l'hébergement. Exemple : `php -d max_execution_time=0 artisan queue:work --queue=languageProcessor --timeout=900 --tries=1`, avec `retry_after` supérieur à ce délai (par exemple 960 secondes) et `INTERPRESSO_PROCESS_LOCK_TTL=1800`. Pour SQS, configurez le délai de visibilité équivalent. Dimensionnez selon la tâche la plus longue et l'attente en file ; un délai s'applique par tâche, pas par lot. Supervisez le worker et consultez `failed_jobs` et les journaux en cas d'échec.
-2. **Cron et commandes, sans worker :** définissez `QUEUE_CONNECTION=sync` et appelez les commandes d'importation, recherche des manquants, validation et exportation. Les services s'exécutent directement dans le processus CLI ; sync y livre aussi les notifications mises en file. Les limites sont celles de PHP CLI `max_execution_time`/`memory_limit`, du système et de l'hébergement ou planificateur, sans échéance PHP-FPM/serveur web. `php -d max_execution_time=0 artisan ...` supprime explicitement la limite de temps PHP CLI, pas celle de l'hébergeur. Les commandes partagent le verrou ; une commande bloquée signale le propriétaire et ne traite rien. Vérifiez les journaux cron : un retour pour occupation ne signifie pas une opération réussie.
-3. **Sync pour petites installations uniquement :** gardez `QUEUE_CONNECTION=sync`, utilisez l'interface pour consulter, modifier et vérifier des lignes individuelles, et lancez manuellement les commandes en masse. Les interactions HTTP ordinaires restent soumises à PHP-FPM, au délai PHP web et au serveur web. Les boutons de traitement en masse sont refusés quel que soit le nombre de traductions. Une petite installation n'autorise jamais importations, exportations, validations par lot ou traduction automatique des autres langues à s'exécuter dans HTTP. Quand la charge augmente, utilisez un worker ou le mode cron.
+1. **Supervisor / worker permanent : meilleur choix pour le traitement en temps réel.** Définissez `QUEUE_CONNECTION=database` (ou `redis`) et supervisez un worker consommant `languageProcessor`, ou votre `interpresso.queue_name`. Par exemple : `php -d max_execution_time=0 artisan queue:work --queue=languageProcessor --timeout=900 --tries=1`. Placez le `retry_after` de la connexion au-dessus du délai par tâche, par exemple 960 secondes, et définissez `INTERPRESSO_PROCESS_LOCK_TTL=1800`. Pour SQS, configurez le délai de visibilité équivalent. Dimensionnez les limites selon la tâche la plus longue et l'attente en file ; consultez `failed_jobs` et les journaux en cas d'échec.
+2. **Sans Supervisor : recommandé pour un hébergement mutualisé.** Définissez `QUEUE_CONNECTION=database`, activez `interpresso.schedule.queue_worker` et ajoutez l'unique ligne cron exécutée chaque minute ci-dessous. Les boutons fonctionnent normalement. Cron démarre un worker à durée limitée et traite les tâches disponibles dans la minute ; les tâches longues et les files chargées peuvent nécessiter plusieurs passages. Aucune installation de Supervisor ni aucun worker permanent n'est nécessaire.
+3. **Sync : petites installations uniquement.** Avec `QUEUE_CONNECTION=sync`, utilisez l'interface pour parcourir et modifier ou vérifier des lignes individuelles. Elle refuse les opérations longues et indique la commande Artisan correspondante, à exécuter manuellement en CLI. Les limites de mémoire et de temps de PHP CLI et de l'hébergement restent applicables. Une petite taille n'autorise jamais les opérations groupées dans une requête HTTP.
 
-Après modification de la configuration des files, reconstruisez le cache de configuration si utilisé (`php artisan config:cache`) et redémarrez les workers persistants. Avec `null`, les services CLI peuvent fonctionner, mais les notifications en file sont abandonnées ; utilisez `sync` sans worker.
+Après un changement de configuration de file, reconstruisez le cache de configuration si utilisé (`php artisan config:cache`) et redémarrez les workers permanents. Avec `null`, les notifications en file sont supprimées.
 
-Une action en masse refusée affiche un avertissement avec sa commande de remplacement exacte. Par exemple, **Importer les traductions** indique : "Aucun worker de file d'attente n'est configuré. Cette opération s'exécuterait dans la requête web et serait interrompue par la limite de temps PHP. Exécutez : php artisan interpresso:import-translations". Rien n'est importé, aucun lot ni verrou n'est créé. La mise à jour avec traduction automatique exige une file base/Redis et fournit les instructions du worker avant d'enregistrer le brouillon source. Modification et validation individuelles restent disponibles.
+Une action groupée refusée indique sa commande CLI exacte, par exemple `php artisan interpresso:import-translations`, et explique comment une file en base avec le planificateur permet d'utiliser le bouton. Aucune donnée n'est écrite, aucun lot ne démarre et aucun verrou d'opération n'est acquis. La mise à jour avec traduction automatique affiche les mêmes instructions avant d'enregistrer le brouillon source. Les modifications et validations individuelles restent disponibles.
 
 | Action interface/API | Remplacement CLI |
 | --- | --- |
@@ -315,19 +317,38 @@ Une action en masse refusée affiche un avertissement avec sa commande de rempla
 
 Le message de validation fournit l'ID réel de l'administrateur connecté, les messages propres à une langue son code sélectionné. L'API authentifiée d'export forcé renvoie HTTP **503** avec une `message` JSON contenant la commande d'export forcé si la connexion ne peut pas différer le travail. `interpresso:export-translations-deployment` correspond au comportement de l'API en réécrivant fichiers et modèles même en mode base ; la commande normale avec `--force=1` respecte ce mode. Chaque hôte récepteur nécessite une connexion différée et un worker. Une file compatible avec un verrou actif renvoie toujours **409**.
 
-### Crontab sans worker {#crontab-without-a-worker}
+### Cron sans Supervisor {#cron-without-supervisor}
 
-Pour une configuration concrète sous Linux, définissez `QUEUE_CONNECTION=sync` dans l'environnement/configuration de l'application hôte. Cette crontab quotidienne importe les nouvelles sources, crée les équivalents manquants puis exporte les traductions déjà validées. Remplacez chemin, exécutable PHP et horaires. Le propriétaire de la crontab doit pouvoir écrire dans les chemins de stockage et d'exportation. `flock` empêche le chevauchement de cette séquence sur le même hôte ; le verrou du package coordonne aussi les commandes individuelles et mutations HTTP.
+**Cette configuration est recommandée pour un hébergement mutualisé.** Dans l'environnement de l'application hôte, activez la planification du worker et utilisez un cache persistant :
 
-```cron
-SHELL=/bin/sh
-PATH=/usr/local/bin:/usr/bin:/bin
-15 2 * * * /usr/bin/flock -n /srv/app/storage/interpresso-cron.lock /bin/sh -c 'cd /srv/app && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-languages && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:find-missing-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:export-translations' >> /srv/app/storage/logs/interpresso-cron.log 2>&1
+```dotenv
+QUEUE_CONNECTION=database
+INTERPRESSO_SCHEDULE_QUEUE_WORKER=true
+CACHE_STORE=file
 ```
 
-La validation reste une étape de relecture volontaire et n'est donc pas planifiée ici. Après relecture, lancez `php artisan interpresso:approve-translations --translator=1` avec l'ID réel du traducteur administrateur, éventuellement avec `--language=en`. Pour une langue, utilisez `php artisan interpresso:export-translations --language=en` ; pour une réécriture forcée, `php artisan interpresso:export-translations --force=1`. Ajoutez `--only-models` pour reproduire les boutons d'exportation des modèles. Le mode base exporte déjà uniquement les modèles. Les commandes restent locales sans propagation aux pairs ; organisez leur exécution sur chaque hôte d'une installation sans worker.
+Cela active `interpresso.schedule.queue_worker`, dont la valeur par défaut est `false`. Lors des mises à niveau, ajoutez les options manquantes à la configuration publiée sans écraser les réglages locaux. Exécutez `php artisan migrate` si les tables de file/lots manquent et reconstruisez le cache avec `php artisan config:cache`. Ajoutez exactement une ligne cron, en adaptant le chemin et le programme PHP :
 
-Les utilisateurs connectés voient la progression du lot. Le chargement d'une page retrouve un lot actif et la redirection d'une nouvelle action transporte son ID. La progression est interrogée chaque seconde dans un onglet visible, suspendue dans un onglet masqué et arrêtée à la fin, l'annulation ou la disparition du lot. La fin produit un message. Rechargez le tableau pour voir les lignes modifiées ; le suivi ne le recharge pas automatiquement.
+```cron
+* * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
+```
+
+L'utilisateur cron doit pouvoir lancer PHP CLI et des processus en arrière-plan, et écrire dans les chemins de stockage et d'exportation. Vérifiez le calendrier enregistré et testez un passage manuellement :
+
+```bash
+php artisan schedule:list
+php artisan interpresso:work
+```
+
+`interpresso:work` appelle `queue:work` pour `interpresso.queue_name` sur la connexion par défaut, avec `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=128`, `--timeout=60`, `--sleep=0` et `--tries=1`. Une file vide renvoie immédiatement 0. Le travail restant après une limite est repris au passage suivant ; les tâches retardées ou réservées restent pour plus tard.
+
+Configurez `interpresso.queue_worker.max_time` (secondes), `interpresso.queue_worker.max_jobs`, `interpresso.queue_worker.memory` (Mo) et `interpresso.queue_worker.timeout` (secondes par tâche). Les variables associées sont `INTERPRESSO_QUEUE_WORKER_MAX_TIME`, `INTERPRESSO_QUEUE_WORKER_MAX_JOBS`, `INTERPRESSO_QUEUE_WORKER_MEMORY` et `INTERPRESSO_QUEUE_WORKER_TIMEOUT`. Toutes doivent être des entiers positifs ; zéro/illimité et les valeurs invalides sont refusés. Les limites de temps et de mémoire sont vérifiées entre les tâches. PHP CLI nécessite PCNTL pour que Laravel interrompe une tâche bloquée à son échéance ; sinon, une limite de processus imposée par l'hébergement est nécessaire. Configurez aussi des délais réseau finis. Gardez `retry_after` au-dessus du délai par tâche, ou réglez la visibilité SQS en conséquence, et `interpresso.process_lock_ttl` au-dessus de la tâche ininterrompue la plus longue et de l'attente prévue.
+
+Le worker s'exécute chaque minute en arrière-plan avec `withoutOverlapping`. Son verrou de cache expire après `ceil((max_time + timeout) / 60) + 1` minutes, soit trois minutes par défaut, pour laisser finir la dernière tâche. Une fin normale le libère plus tôt. Utilisez un cache persistant, par exemple sur fichiers pour un seul hôte, ou partagé entre plusieurs hôtes, jamais un cache array/null en mémoire. Ce verrou du planificateur évite le chevauchement des workers cron. Le `ProcessLock` distinct en base protège les opérations de traduction entre HTTP, CLI et lots ; les deux sont nécessaires. Les lancements manuels du worker ne bénéficient pas du verrou du planificateur.
+
+Le même bloc propose des activations indépendantes : `interpresso.schedule.prune_batches` lance `interpresso:prune-batches` chaque minute ; `interpresso.schedule.pending_notifications` lance `interpresso:send-automatic-pending-translations-notification` chaque jour à minuit dans le fuseau du planificateur. Activez-les avec `INTERPRESSO_SCHEDULE_PRUNE_BATCHES=true` et `INTERPRESSO_SCHEDULE_PENDING_NOTIFICATIONS=true`. Les deux valent `false` par défaut, même si le worker est actif. La maintenance précède un nouveau worker planifié ; un verrou d'opération existant peut néanmoins faire ignorer un passage de maintenance. Les rappels automatiques exigent aussi le réglage enregistré `enable_automatic_pending_notifications` et un transport de courrier fonctionnel. Ce réglage est vérifié à l'exécution ; enregistrer le calendrier ne lit pas la table des paramètres.
+
+Les trois calendriers sont omis si la connexion ne diffère pas le travail, notamment sync/null/deferred/absente ou un basculement non sûr. Ils ne planifient pas eux-mêmes des importations ou validations : les administrateurs continuent d'utiliser l'interface. Pour désactiver le worker cron, définissez `INTERPRESSO_SCHEDULE_QUEUE_WORKER=false` et reconstruisez le cache ; un passage déjà lancé se termine dans ses limites configurées.
 
 ### Pourquoi une action peut être bloquée {#why-an-action-may-be-blocked}
 
@@ -349,7 +370,7 @@ Utilisez **Langues > Annuler le traitement par lot en cours** pour marquer les l
 
 Si la coordination est active, le même bouton demande l'annulation sur les autres hôtes. Il n'existe ni sélecteur par tâche ni écran de relance des tâches échouées.
 
-Exécutez `interpresso:prune-batches` pour retirer les anciens lots terminés/annulés. Il n'annule pas de travail actif et ne supprime ni tâches en file ni tâches échouées. Le package ne planifie activement ni nettoyage ni rappels automatiques ; organisez leur invocation dans le planificateur ou les outils d'exploitation de l'application hôte.
+Exécutez `interpresso:prune-batches` pour supprimer les anciens lots terminés/annulés. Cela n'annule aucun travail actif et ne supprime aucune tâche en file ou échouée. Activez `interpresso.schedule.prune_batches` pour un nettoyage chaque minute et `interpresso.schedule.pending_notifications` pour des rappels quotidiens. Les deux sont facultatifs et nécessitent une connexion de file différée.
 
 ## Autorisations et commandes communes {#permissions-and-shared-controls}
 
@@ -385,7 +406,7 @@ Le package active des en-têtes de sécurité navigateur stricts par défaut. Sc
 
 ## Référence CLI {#cli-reference}
 
-Exécutez les commandes sous la forme `php artisan ...` depuis le répertoire de l'application Laravel hôte. Voici les dix signatures de commandes de `src/Console/Commands/`. Les commandes de traitement acquièrent le verrou partagé et peuvent retourner immédiatement avec propriétaire et début si le système est occupé ; ce retour ne signifie pas une opération terminée. Sauf exception ci-dessous, les commandes utilisent les paramètres enregistrés.
+Exécutez les commandes sous la forme `php artisan ...` depuis le répertoire de l'application Laravel hôte. Voici les onze signatures de commandes de `src/Console/Commands/`. Les commandes de traitement acquièrent le verrou partagé et peuvent retourner immédiatement avec propriétaire et début si le système est occupé ; ce retour ne signifie pas une opération terminée. Sauf exception ci-dessous, les commandes utilisent les paramètres enregistrés.
 
 ### interpresso:import-languages {#interpressoimport-languages}
 
@@ -481,6 +502,20 @@ Force synchroniquement l'exportation des traductions validées et non modifiées
 php artisan interpresso:export-translations-deployment
 ```
 
+### interpresso:work {#interpressowork}
+
+Signature :
+
+```text
+interpresso:work
+```
+
+Traite uniquement la file configurée du package, puis s'arrête lorsqu'elle est vide ou qu'une limite de temps/tâches est atteinte. Le reste continue au passage cron suivant. Renvoie 0 pour une file vide ou une limite normale, 1 pour une connexion non différée ou des limites invalides, sinon le code de sortie du worker. Des échecs de tâches peuvent être enregistrés même avec une sortie 0 ; vérifiez les enregistrements d'échec et les journaux. Aucune option propre : configurez les limites décrites dans [Cron sans Supervisor](#cron-without-supervisor).
+
+```bash
+php artisan interpresso:work
+```
+
 ### interpresso:prune-batches {#interpressoprune-batches}
 
 Signature :
@@ -491,7 +526,7 @@ interpresso:prune-batches
 
 Supprime les lignes correspondant à `interpresso.batch_name` dans `job_batches` sur `interpresso.db_connection` dont la fin ou l'annulation remonte à plus de `interpresso.prune_batch_hours`, soit 24 heures par défaut. Ne touche ni aux lots actifs, ni aux tâches en file, ni aux enregistrements d'échec. Aucune option propre ni sortie de fin n'est prévue.
 
-À utiliser pour nettoyer les lots conservés. Planifiez-la dans l'application hôte pour un nettoyage récurrent ; le code de planification du package est inactif.
+Utilisez cette commande pour nettoyer les lots conservés. Activez `interpresso.schedule.prune_batches` pour un nettoyage automatique chaque minute, ou définissez votre propre calendrier.
 
 ```bash
 php artisan interpresso:prune-batches
@@ -509,7 +544,7 @@ C'est le nom réel implémenté par `SendAutomaticPendingNotifications` ; `inter
 
 Si `enable_automatic_pending_notifications` vaut vrai, parcourt tous les traducteurs, administrateurs compris, et leurs affectations explicites. Pour chaque langue avec des entrées À traduire, met en file des notifications pour la base et l'e-mail. Sans entrée en attente, aucun envoi. Si le réglage est faux, ne fait rien. N'exige pas `enable_pending_notifications`, utilise le garde partagé et n'affiche pas de bilan de réussite.
 
-À utiliser pour des rappels récurrents avec votre planification, un transport mail fonctionnel et un worker du package. Aucun calendrier actif n'est enregistré automatiquement ; relancer la commande peut rappeler à nouveau le même travail en attente.
+Utilisez cette commande pour des rappels récurrents avec un transport de courrier fonctionnel et un worker permanent ou lancé par cron. Activez `interpresso.schedule.pending_notifications` pour le calendrier quotidien, ou définissez le vôtre. Relancer la commande peut envoyer un autre rappel pour le même travail.
 
 ```bash
 php artisan interpresso:send-automatic-pending-translations-notification
@@ -582,7 +617,7 @@ Si la table des paramètres manque ou est vide, le choix du chargeur peut utilis
 
 Vérifiez le réglage concerné, le package OpenAI facultatif, l'API, l'exemple choisi et les journaux. Un échec OpenAI peut renvoyer le texte source inchangé. Les boutons de l'éditeur dépendent de la langue source et de la présence d'exemples ; les textes générés exigent toujours relecture et validation.
 
-Les rappels comptent À traduire, pas toutes les entrées non validées. Vérifiez les affectations explicites, le transport mail et le worker. Les réglages manuel et automatique sont indépendants, sans planification installée pour le second. Lire une notification à l'écran ne change pas l'état d'une traduction.
+Les rappels comptent les lignes à traduire, pas toutes les lignes non validées. Vérifiez les affectations explicites, le transport de courrier et le worker. Les réglages manuels et automatiques sont indépendants. Pour les rappels quotidiens, activez aussi `interpresso.schedule.pending_notifications`. Marquer une notification comme lue ne change aucun état de traduction.
 
 ### Erreurs d'accès, de routes et entre hôtes {#access-routes-and-inter-host-errors}
 

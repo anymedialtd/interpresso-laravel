@@ -31,7 +31,7 @@ Symptoms:
 
 Checks:
 
-- A worker running for an asynchronous queue; sync CLI/cron commands need no worker, but bulk HTTP actions refuse sync
+- A long-running worker or `interpresso.schedule.queue_worker` enabled with the every-minute scheduler cron for an asynchronous queue; bulk HTTP actions refuse sync
 - Queue tables exist (`jobs`, `job_batches`, `failed_jobs`)
 - queue name matches config (`interpresso.queue_name`)
 
@@ -145,6 +145,6 @@ Resolution:
 
 - Upgrade the host app to Laravel 12 or 13.
 
-## Bulk action says no queue worker is configured
+## Bulk action says no background queue is configured
 
-The configured queue connection uses `sync`, `null`, `deferred`, missing settings, or an unsafe failover path. Interpresso refuses bulk HTTP work before changing data. Run the exact Artisan command in the toast, or configure a database/Redis connection and a worker on `languageProcessor`. Rebuild cached configuration after changes. A deferring driver alone does not prove that a worker is running. The peer force-export API returns HTTP 503 with the same CLI instruction. See [supported execution modes and cron](CONFIGURATION.md#supported-execution-modes).
+The configured queue connection uses `sync`, `null`, `deferred`, missing settings, or an unsafe failover path. Interpresso refuses bulk HTTP work before changing data. Run the exact Artisan command in the toast, or configure a database/Redis connection and a worker on `languageProcessor`. Without Supervisor, the recommended shared-hosting setup is `QUEUE_CONNECTION=database` plus `interpresso.schedule.queue_worker` and [one every-minute scheduler cron line](CONFIGURATION.md#cron-without-supervisor); the UI buttons then work normally. Rebuild cached configuration after changes. A deferring driver alone does not prove a worker or cron is running. The peer force-export API returns HTTP 503 with the same CLI and scheduler guidance. See [supported execution modes and cron](CONFIGURATION.md#supported-execution-modes).

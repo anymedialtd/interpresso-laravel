@@ -30,6 +30,8 @@ New installations enable `db_loader` and disable multi-host coordination. Before
 php artisan queue:work --queue=languageProcessor
 ```
 
+For shared hosting without Supervisor, use `QUEUE_CONNECTION=database` and enable `interpresso.schedule.queue_worker` with [one cron line](#cron-without-supervisor). This is the recommended shared-hosting setup; the UI buttons work normally.
+
 The cache store and queue connection are separate settings. A database-backed queue is compatible with a non-database cache.
 
 ### Sign in and change the default password
@@ -207,7 +209,7 @@ These are the nine user-editable columns. Defaults below describe a fresh instal
 - **`import_vendor`**, default `false`: includes registered vendor namespaces during translation import. With DB loading enabled and this setting off, namespaced vendor translations continue to use the parent file loader. Turning it on makes those namespaces use database translations too, so import them before relying on DB delivery. Use it when translators should manage package/vendor text. It does not delete previously imported vendor records when disabled or filter existing vendor rows out of file exports.
 - **`enable_open_ai_translations`**, default `false`: enables OpenAI calls for missing-translation generation and editor actions, and exposes the relevant buttons. Use it after configuring the optional integration. It does not automatically translate every existing row or approve generated text; enabling it without the integration leaves the service returning its input.
 - **`enable_pending_notifications`**, default `false`: shows the manual pending-notification action in the translator edit form. Use it when administrators should request reminders for individual accounts. It does not schedule reminders and is not checked by the automatic notification command.
-- **`enable_automatic_pending_notifications`**, default `false`: allows the automatic pending-notification command to iterate every translator's explicit assignments. Use it with your own command schedule. It works independently of `enable_pending_notifications`; the package does not register an active schedule for it.
+- **`enable_automatic_pending_notifications`**, default `false`: allows the automatic pending-notification command to iterate every translator's explicit assignments. Use your own schedule or enable `interpresso.schedule.pending_notifications`. It works independently of `enable_pending_notifications`; the command checks this saved setting at execution time.
 - **`import_only_from_root_language`**, default `false`: limits translation imports, including model/vendor import passes, to the language matching `app.locale`. Use it when root-language sources are authoritative and other languages are maintained in the panel. It does not restrict Import Languages or delete existing non-root rows. Find Missing Translations can subsequently create root-language counterparts in the other languages.
 - **`allow_deleting_languages`**, default `false`: exposes the language Delete links to administrators. Enable it when removing language records and their translations is intentional. The delete endpoint checks both administrator status and this toggle.
 - **`enable_multi_host`**, default `false`: adds configured-host job checks and allows UI export/cancellation propagation. Leave it off for one project. When off, saved domains do not trigger those requests. When enabling it through Settings, a non-empty Domains field is required. Existing non-blank saved domains are enabled by the upgrade migration; an environment-only host list does not enable the feature.
@@ -291,13 +293,13 @@ Long-running translation work never runs inside an HTTP request, including after
 
 Choose one of these three supported modes:
 
-1. **Worker:** set `QUEUE_CONNECTION=database` (or `redis`) in the host application and run a supervised worker consuming `languageProcessor`, or your `interpresso.queue_name`. HTTP only enqueues batches. Execution is bounded by the worker's `--timeout`, PHP CLI memory/time settings, and process-manager or hosting limits. For example, use `php -d max_execution_time=0 artisan queue:work --queue=languageProcessor --timeout=900 --tries=1`, set the connection's `retry_after` above that timeout (for example 960 seconds), and set `INTERPRESSO_PROCESS_LOCK_TTL=1800`. For SQS configure the equivalent visibility timeout. Size these values for the longest job and queue wait; a timeout is per job, not per batch. Keep the worker supervised and inspect `failed_jobs` and application logs on failure.
-2. **Cron plus commands, without a worker:** set `QUEUE_CONNECTION=sync` and invoke the import, missing-translation, approval and export commands from the CLI. They call their services inline in that CLI process, and sync also delivers their queued notifications there. They are bounded by PHP CLI `max_execution_time`/`memory_limit`, OS resources, and any hosting or scheduler runtime cap, without a PHP-FPM/web-server deadline. `php -d max_execution_time=0 artisan ...` explicitly removes PHP's CLI time cap; it cannot remove a hosting cap. Commands share the process lease; a busy command reports the current owner and does no work. Review cron logs because a busy return is not successful completion of the requested work.
-3. **Sync for small installations only:** keep `QUEUE_CONNECTION=sync`, use the UI for browsing, single-row edits and reviews, and run bulk commands manually when needed. Ordinary HTTP interactions remain bounded by PHP-FPM, PHP's web time limit and the web server. Bulk buttons are still refused, regardless of translation count. Small installation size never enables inline HTTP imports, exports, approval batches or automatic translation of other languages. As the workload grows, use a worker or the cron setup above.
+1. **Supervisor / a long-running worker: best for real-time processing.** Set `QUEUE_CONNECTION=database` (or `redis`) and supervise a worker consuming `languageProcessor`, or your `interpresso.queue_name`. For example, run `php -d max_execution_time=0 artisan queue:work --queue=languageProcessor --timeout=900 --tries=1`, set the connection's `retry_after` above the job timeout (for example 960 seconds), and set `INTERPRESSO_PROCESS_LOCK_TTL=1800`. For SQS configure the equivalent visibility timeout. Size limits for the longest job and queue wait; inspect `failed_jobs` and application logs on failure.
+2. **No Supervisor: recommended for shared hosting.** Set `QUEUE_CONNECTION=database`, enable `interpresso.schedule.queue_worker`, and add the single every-minute cron line below. The UI buttons work normally. Cron starts a bounded worker and drains ready jobs within a minute; long jobs and backlogs may continue over later ticks. No Supervisor installation or permanently running worker is needed.
+3. **Sync: small installations only.** With `QUEUE_CONNECTION=sync`, use the UI for browsing and individual edits/reviews. The UI refuses long operations and names the matching Artisan command; run that command manually in the CLI. PHP CLI memory/time limits and hosting limits still apply. Small size never enables inline HTTP bulk work.
 
-After changing queue environment/configuration, rebuild the host's configuration cache if used (`php artisan config:cache`) and restart long-running workers. With `null`, CLI service calls can still run, but queued notifications are discarded; use `sync` for the no-worker modes.
+After changing queue configuration, rebuild the host's configuration cache if used (`php artisan config:cache`) and restart any long-running workers. With `null`, queued notifications are discarded.
 
-A refused bulk action shows a warning toast naming its exact CLI replacement. For example, **Import Translations** says: "No queue worker is configured, so this would run inside the web request and be cut off by PHP's time limit. Run: php artisan interpresso:import-translations". Nothing is imported, no batch starts, and no lease is acquired. Update-and-auto-translate requires a database/Redis queue and gives worker setup instructions before saving the root draft. Single-row editing and approval remain available.
+A refused bulk action names its exact CLI replacement, for example `php artisan interpresso:import-translations`, and explains how a database queue plus the scheduler makes the button work. No data is written, no batch starts, and no operation lease is acquired. Update-and-auto-translate shows the same queue/scheduler setup guidance before saving the root draft. Single-row editing and approval remain available.
 
 | UI/API action | CLI replacement |
 | --- | --- |
@@ -313,19 +315,38 @@ A refused bulk action shows a warning toast naming its exact CLI replacement. Fo
 
 The approval toast supplies the signed-in administrator's actual ID, and language-specific toasts supply the selected language code. The authenticated peer force-export API returns HTTP **503** with a JSON `message` containing the force-export command if the connection cannot defer work. `interpresso:export-translations-deployment` matches the peer API by rewriting files and models even in DB-loader mode; the normal `--force=1` command respects DB-loader mode. Each receiving host needs a deferring connection and a worker for peer-triggered export. A supported queue with a live process lock still returns **409**.
 
-### Crontab without a worker
+### Cron without Supervisor {#cron-without-supervisor}
 
-For a concrete no-worker setup on Linux, set `QUEUE_CONNECTION=sync` in the host application's environment/configuration. This daily crontab imports new sources, finds missing counterparts, then exports already approved translations. Replace the application path, PHP binary and times. The crontab owner must be able to write the application's storage and export paths. `flock` prevents overlapping invocations of this sequence on the same host; the package lease also coordinates individual commands and HTTP mutations.
+**This is the recommended setup for shared hosting.** In the host application's environment, enable the package worker schedule and use a persistent cache:
 
-```cron
-SHELL=/bin/sh
-PATH=/usr/local/bin:/usr/bin:/bin
-15 2 * * * /usr/bin/flock -n /srv/app/storage/interpresso-cron.lock /bin/sh -c 'cd /srv/app && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-languages && /usr/bin/php -d max_execution_time=0 artisan interpresso:import-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:find-missing-translations && /usr/bin/php -d max_execution_time=0 artisan interpresso:export-translations' >> /srv/app/storage/logs/interpresso-cron.log 2>&1
+```dotenv
+QUEUE_CONNECTION=database
+INTERPRESSO_SCHEDULE_QUEUE_WORKER=true
+CACHE_STORE=file
 ```
 
-Approval is a deliberate review step, so it is not scheduled in this example. After review, run `php artisan interpresso:approve-translations --translator=1` with the actual administrator translator ID, optionally adding `--language=en`. Per-language exports use `php artisan interpresso:export-translations --language=en`; forced rewrites use `php artisan interpresso:export-translations --force=1`. Add `--only-models` for the model-export buttons. DB-loader mode already exports only models. The CLI commands run locally and do not propagate exports to peers; arrange commands on each host in a no-worker installation.
+This enables `interpresso.schedule.queue_worker`; its default is `false`. On upgrades, add any missing options to the published configuration instead of overwriting local settings. Run `php artisan migrate` if queue/batch tables are missing, and rebuild cached configuration with `php artisan config:cache`. Add exactly one cron line, replacing the application path and PHP binary as needed:
 
-Signed-in users get a batch progress indicator. Page loads recover an already running batch, and a redirect from a newly started action carries its batch ID. Progress polls once per second while the tab is visible, pauses while hidden, and stops when the batch finishes, is cancelled, or disappears. Completion produces a toast. Reload the table to see changed rows; polling does not reload it automatically.
+```cron
+* * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
+```
+
+The cron user must be able to run PHP CLI/background processes and write the application's storage and export paths. Confirm the registered schedule and test one drain manually:
+
+```bash
+php artisan schedule:list
+php artisan interpresso:work
+```
+
+`interpresso:work` wraps `queue:work` for `interpresso.queue_name` on the default connection, with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=128`, `--timeout=60`, `--sleep=0` and `--tries=1`. An empty queue exits 0 immediately. Work left after a budget is reached is picked up on the next tick; delayed/reserved jobs remain for later runs.
+
+Configure `interpresso.queue_worker.max_time` (seconds), `interpresso.queue_worker.max_jobs`, `interpresso.queue_worker.memory` (MB), and `interpresso.queue_worker.timeout` (seconds per job). Their environment variables are `INTERPRESSO_QUEUE_WORKER_MAX_TIME`, `INTERPRESSO_QUEUE_WORKER_MAX_JOBS`, `INTERPRESSO_QUEUE_WORKER_MEMORY`, and `INTERPRESSO_QUEUE_WORKER_TIMEOUT`. All must be positive integers; zero/unlimited and malformed values are rejected. Time and memory budgets are checked between jobs. PHP CLI needs PCNTL for Laravel to interrupt a stuck job at its timeout; otherwise a hosting process limit is needed to bound a stuck job. Configure finite network timeouts too. Keep `retry_after` above the job timeout (or set SQS visibility accordingly) and `interpresso.process_lock_ttl` above the longest uninterrupted job and expected queue wait.
+
+The worker runs every minute in the background with `withoutOverlapping`. Its cache lock expires after `ceil((max_time + timeout) / 60) + 1` minutes, three minutes with defaults, allowing the last job to finish. Normal completion releases it earlier. Use a persistent cache such as file storage on one host, or a shared cache across hosts, never an in-memory array/null store. This scheduler cache lock prevents overlapping cron workers. The separate database `ProcessLock` protects translation operations across HTTP, CLI and batches; both are needed. Manual worker invocations are not protected by the scheduler mutex.
+
+The same configuration block offers independent opt-ins: `interpresso.schedule.prune_batches` runs `interpresso:prune-batches` every minute; `interpresso.schedule.pending_notifications` runs `interpresso:send-automatic-pending-translations-notification` daily at midnight in the scheduler timezone. Enable them with `INTERPRESSO_SCHEDULE_PRUNE_BATCHES=true` and `INTERPRESSO_SCHEDULE_PENDING_NOTIFICATIONS=true`. Both default to `false`, even when the worker is enabled. Maintenance runs before a newly scheduled worker; existing operation locks can still make a maintenance invocation skip. Automatic reminders also require the saved `enable_automatic_pending_notifications` setting and a working mail transport. That setting is checked when the command runs, so schedule registration needs no settings-table read.
+
+All three package schedules are omitted when the configured driver cannot defer work, including sync/null/deferred/missing or unsafe failover connections. They do not schedule imports or approvals themselves: administrators continue to use the UI normally. To disable the cron worker, set `INTERPRESSO_SCHEDULE_QUEUE_WORKER=false` and rebuild cached configuration; an already running invocation finishes within its configured limits.
 
 ### Why an action may be blocked
 
@@ -347,7 +368,7 @@ Use **Languages > Delete running Batch (Jobs)** to mark unfinished package batch
 
 With multi-host enabled, the same button requests cancellation on other configured hosts. It does not provide a per-job picker or a retry-failed-jobs screen.
 
-Run `interpresso:prune-batches` to remove old finished/cancelled batch records. It does not cancel active work or delete queued/failed jobs. The package does not actively schedule pruning or automatic reminders; arrange their invocation in the host application's scheduler or operational tooling.
+Run `interpresso:prune-batches` to remove old finished/cancelled batch records. It does not cancel active work or delete queued/failed jobs. Enable `interpresso.schedule.prune_batches` for minute-by-minute cleanup and `interpresso.schedule.pending_notifications` for daily reminders. Both are optional and require a deferring queue connection.
 
 ## Permissions and Shared Controls
 
@@ -383,7 +404,7 @@ The package enables strict browser security headers by default. Its scripts and 
 
 ## CLI Reference
 
-Run commands as `php artisan ...` from the host Laravel application's directory. These are all ten command signatures in `src/Console/Commands/`. The working commands acquire the shared process lease and can return early with the current owner and start time; that early return is not a completed operation. Commands use the saved settings unless an exception is specified below.
+Run commands as `php artisan ...` from the host Laravel application's directory. These are all eleven command signatures in `src/Console/Commands/`. The working commands acquire the shared process lease and can return early with the current owner and start time; that early return is not a completed operation. Commands use the saved settings unless an exception is specified below.
 
 ### interpresso:import-languages
 
@@ -479,6 +500,20 @@ Use it after a file-mode deployment that replaced exported translations. It is u
 php artisan interpresso:export-translations-deployment
 ```
 
+### interpresso:work {#interpressowork}
+
+Signature:
+
+```text
+interpresso:work
+```
+
+Drains only the configured package queue, then exits when empty or when a time/job budget is reached. Remaining work continues on the next cron tick. Returns 0 for an empty queue or a normal budget stop, 1 for non-deferring connections or invalid limits, and otherwise forwards the underlying worker exit code. Worker failures can still be recorded even when the worker exits 0; inspect the failed-job records and logs. There are no command-specific options: configure the limits described in [Cron without Supervisor](#cron-without-supervisor).
+
+```bash
+php artisan interpresso:work
+```
+
 ### interpresso:prune-batches
 
 Signature:
@@ -489,7 +524,7 @@ interpresso:prune-batches
 
 Deletes matching `interpresso.batch_name` rows from `job_batches` on `interpresso.db_connection` when their finished or cancelled timestamp is older than `interpresso.prune_batch_hours`, default 24 hours. It does not touch active batches, queue jobs, or failed-job records. There are no command-specific options or completion output.
 
-Use it for retained-batch housekeeping. Schedule it in the host application if recurring cleanup is required; the package's scheduling code is inactive.
+Use it for retained-batch housekeeping. Enable `interpresso.schedule.prune_batches` for automatic cleanup every minute, or arrange your own schedule.
 
 ```bash
 php artisan interpresso:prune-batches
@@ -507,7 +542,7 @@ This is the actual command name implemented by `SendAutomaticPendingNotification
 
 When `enable_automatic_pending_notifications` is true, it iterates every translator, including administrators, and their explicit language assignments. For each language with Needs Translation rows, notifications are queued for database and mail delivery. Zero pending rows produce no delivery. When the toggle is false, the command does nothing. It does not require `enable_pending_notifications`, uses the shared process guard, and prints no success summary.
 
-Use it for recurring reminders with a host-managed schedule, working mail transport, and a package queue worker. No active schedule is registered automatically, and running it again can send another reminder for the same pending work.
+Use it for recurring reminders with a working mail transport and either a long-running or cron worker. Enable `interpresso.schedule.pending_notifications` for the daily schedule, or arrange your own. Running it again can send another reminder for the same pending work.
 
 ```bash
 php artisan interpresso:send-automatic-pending-translations-notification
@@ -580,7 +615,7 @@ If the settings table is absent or has no row, loader selection can choose Larav
 
 Check the relevant toggle, optional OpenAI package and API configuration, selected example, and application logs. OpenAI failures can return source text unchanged. Editor buttons have root/non-root and example-presence conditions; generated text still needs review and approval.
 
-Pending reminders count Needs Translation, not every unapproved row. Check the account's explicit language assignments, mail transport, and queue worker. The manual reminder toggle and automatic-command toggle are independent, and no schedule is installed for the latter. Marking an on-screen notification read does not change translation state.
+Pending reminders count Needs Translation, not every unapproved row. Check explicit language assignments, mail transport and the queue worker. Manual and automatic reminder settings are independent. For daily reminders, also enable `interpresso.schedule.pending_notifications`. Marking an on-screen notification read does not change translation state.
 
 ### Access, routes, and inter-host errors
 

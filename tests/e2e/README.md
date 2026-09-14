@@ -38,7 +38,7 @@ The base fixture supplies:
 
 Use `test.use({ fixtureScenario: '...' })` for actor/type filters, examples, imports, bulk actions, notifications, running jobs, live/expired cron locks, pagination or model exports. `fixtures.php` is also exercised through PHPUnit HTTP tests. Seeding must reach its completion marker; Tinker sometimes exits successfully after printing an exception, so the helper checks the marker explicitly.
 
-Bulk HTTP jobs are dispatched to the database queue and executed by a separate CLI worker through real services. Sync fixtures verify HTTP refusal. Import/export tests read real files; model export tests inspect the actual disposable JSON column after submitting the UI form. Mail uses the in-memory array transport. AI uses a deterministic external-service double, and suggestion timing/error cases intercept that response only. These tests do not send email or contact a paid AI service.
+Bulk HTTP jobs are dispatched to the database queue and executed by a separate CLI worker through real services. Sync fixtures verify HTTP refusal. `cron-worker.spec.js` submits a real browser batch and drains it in a separate `interpresso:work` process, checking completion, notifications, lock release and a clean exit. The refusal spec checks both the CLI replacement and the shared-hosting scheduler instructions. Import/export tests read real files; model export tests inspect the actual disposable JSON column after submitting the UI form. Mail uses the in-memory array transport. AI uses a deterministic external-service double, and suggestion timing/error cases intercept that response only. These tests do not send email or contact a paid AI service.
 
 ## Browser assertions
 

@@ -37,8 +37,8 @@ return [
     'batch_progress' => 'Avanzamento dell\'elaborazione in blocco',
     'app_name' => 'Interpresso per Laravel',
     'something_wrong' => 'Si è verificato un errore. Contatta l\'amministratore del sito.',
-    'queue_required' => 'Non è configurato alcun worker per la coda. L\'operazione verrebbe eseguita nella richiesta web e interrotta dal limite di tempo di PHP. Esegui: :command',
-    'queue_worker_required' => 'Questa azione richiede una coda in background per evitare il limite di tempo di PHP per le richieste web. Configura una connessione di coda con database o Redis, quindi esegui: :command',
+    'queue_required' => 'Non è configurata alcuna coda in background. L\'operazione verrebbe eseguita nella richiesta web e interrotta dal limite di tempo di PHP. Esegui: :command. Per usare questo pulsante senza Supervisor, imposta QUEUE_CONNECTION=database, abilita interpresso.schedule.queue_worker ed esegui php artisan schedule:run ogni minuto tramite cron (consigliato per hosting condiviso).',
+    'queue_worker_required' => 'Questa azione richiede una coda in background per evitare il limite di tempo di PHP per le richieste web. Configura una connessione di coda con database o Redis, quindi esegui: :command. Senza Supervisor, imposta QUEUE_CONNECTION=database, abilita interpresso.schedule.queue_worker ed esegui php artisan schedule:run ogni minuto tramite cron per usare questo pulsante (consigliato per hosting condiviso).',
     'reload_suggestion' => '<br><span class="text-red-500 text-xs">Potrebbe essere necessario ricaricare la pagina per vedere le modifiche.</span>',
     'import' => [
         'start_message' => 'Processo avviato. Riceverai un messaggio in basso a destra al termine.',

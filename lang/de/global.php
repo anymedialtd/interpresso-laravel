@@ -37,8 +37,8 @@ return [
     'batch_progress' => 'Fortschritt der Stapelverarbeitung',
     'app_name' => 'Interpresso für Laravel',
     'something_wrong' => 'Ein Fehler ist aufgetreten. Wenden Sie sich an die Website-Administration.',
-    'queue_required' => 'Es ist kein Queue-Worker konfiguriert. Der Vorgang würde innerhalb der Webanfrage ausgeführt und durch das PHP-Zeitlimit abgebrochen. Führen Sie folgenden Befehl aus: :command',
-    'queue_worker_required' => 'Diese Aktion erfordert eine Hintergrundwarteschlange, um das PHP-Zeitlimit für Webanfragen zu umgehen. Konfigurieren Sie eine Datenbank- oder Redis-Warteschlange und führen Sie dann folgenden Befehl aus: :command',
+    'queue_required' => 'Es ist keine Hintergrundwarteschlange konfiguriert. Der Vorgang würde innerhalb der Webanfrage ausgeführt und durch das PHP-Zeitlimit abgebrochen. Führen Sie folgenden Befehl aus: :command. Um diese Schaltfläche ohne Supervisor zu verwenden, setzen Sie QUEUE_CONNECTION=database, aktivieren Sie interpresso.schedule.queue_worker und führen Sie php artisan schedule:run jede Minute per Cron aus (empfohlen für Shared Hosting).',
+    'queue_worker_required' => 'Diese Aktion erfordert eine Hintergrundwarteschlange, um das PHP-Zeitlimit für Webanfragen zu umgehen. Konfigurieren Sie eine Datenbank- oder Redis-Warteschlange und führen Sie dann folgenden Befehl aus: :command. Ohne Supervisor: Setzen Sie QUEUE_CONNECTION=database, aktivieren Sie interpresso.schedule.queue_worker und führen Sie php artisan schedule:run jede Minute per Cron aus. Damit funktioniert diese Schaltfläche (empfohlen für Shared Hosting).',
     'reload_suggestion' => '<br><span class="text-red-500 text-xs">Möglicherweise müssen Sie die Seite neu laden, um die Änderungen zu sehen.</span>',
     'import' => [
         'start_message' => 'Vorgang gestartet. Sie erhalten nach Abschluss eine Nachricht unten rechts.',

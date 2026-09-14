@@ -1,6 +1,6 @@
 # CLI Commands
 
-This reference matches the ten commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
+This reference matches the eleven commands registered from `src/Console/Commands/`. The complete in-app guide, including the same CLI reference, is `docs/APPLICATION_MANUAL.md`, rendered at `interpresso.manual` (normally `/translator/manual`). Run commands from the host Laravel application's directory with `php artisan`.
 
 ## Execution and Settings
 
@@ -15,6 +15,8 @@ Import, missing-translation, approval and export commands execute their own tran
 ```bash
 php artisan queue:work --queue=languageProcessor
 ```
+
+On shared hosting without Supervisor, use `QUEUE_CONNECTION=database`, enable `interpresso.schedule.queue_worker`, and invoke Laravel's scheduler through [one cron line](CONFIGURATION.md#cron-without-supervisor). This is the recommended shared-hosting setup. The UI buttons work normally and the scheduled `interpresso:work` drains their queued jobs. The worker itself does not acquire a competing operation lease: its jobs already own the batch's `ProcessLock`.
 
 New installations use `db_loader=true`. Normal export and developer download pass model-only export in this mode, so they do not write PHP/JSON translation files. Model translations still require export to the application's JSON columns. File mode (`db_loader=false`) exports files and models. The deployment command is an exception: it does not pass the model-only flag.
 
@@ -129,6 +131,24 @@ Synchronously force-exports each language's approved, not-updated translations, 
 php artisan interpresso:export-translations-deployment
 ```
 
+## interpresso:work
+
+Signature:
+
+```text
+interpresso:work
+```
+
+Drains `interpresso.queue_name` on the default queue connection by calling `queue:work` with `--stop-when-empty`, `--max-time=50`, `--max-jobs=100`, `--memory=128`, `--timeout=60`, `--sleep=0`, and `--tries=1`. It exits 0 on an empty queue or normal time/job budget stop. Remaining work continues on the next cron tick. Non-deferring connections and invalid limits return 1; other exit codes come from the worker. Check failed-job records and logs even after exit 0.
+
+Configure positive integer values in `interpresso.queue_worker.max_time`, `max_jobs`, `memory`, and `timeout`. Time and memory limits are checked between jobs; interrupting a stuck job at its per-job timeout requires PHP CLI PCNTL or a hosting process limit. See [limits and scheduler configuration](CONFIGURATION.md#cron-without-supervisor). There are no command-specific options.
+
+Enable `interpresso.schedule.queue_worker` to run every minute in the background. Laravel's cache mutex prevents overlapping scheduled workers and is separate from the operation's database lease. A direct invocation does not acquire the scheduler mutex. All package schedules are omitted for connections that cannot defer work.
+
+```bash
+php artisan interpresso:work
+```
+
 ## interpresso:prune-batches
 
 Signature:
@@ -139,7 +159,7 @@ interpresso:prune-batches
 
 Deletes rows from `job_batches` on `interpresso.db_connection` whose name equals `interpresso.batch_name` and whose `finished_at` or `cancelled_at` timestamp is older than `interpresso.prune_batch_hours`, default 24 hours.
 
-It does not cancel active batches, delete queue jobs, prune failed-job records, or print a completion summary. It refuses to start while the shared process guard is busy. It has no retention-hours option; change the config value to alter retention. Use it for recurring batch-record housekeeping. The package does not register an active schedule for it.
+It does not cancel active batches, delete queue jobs, prune failed-job records, or print a completion summary. It refuses to start while the shared process guard is busy. It has no retention-hours option; change the config value to alter retention. Enable `interpresso.schedule.prune_batches` for recurring batch-record housekeeping every minute, or arrange your own schedule.
 
 ```bash
 php artisan interpresso:prune-batches
@@ -159,7 +179,7 @@ When `enable_automatic_pending_notifications=true`, iterates every translator, i
 
 When the toggle is false, the command does nothing. It uses the shared process guard and does not consult `enable_pending_notifications` or print a result summary. Unapproved rows whose Needs Translation flag is false do not count as pending reminders.
 
-Use it for periodic reminders with the application's mail transport, queue worker, and a host-managed schedule. The package's scheduling code is inactive. Repeated runs can send repeated reminders for the same work.
+Use it for periodic reminders with the application's mail transport and a long-running or cron worker. Enable `interpresso.schedule.pending_notifications` for the daily midnight schedule, or arrange your own. The saved automatic-notification setting is still checked when the command runs. Repeated runs can send repeated reminders for the same work.
 
 ```bash
 php artisan interpresso:send-automatic-pending-translations-notification
@@ -220,6 +240,6 @@ php artisan interpresso:find-missing-translations
 
 Complete review and approval in the panel. File mode then needs `interpresso:export-translations`; DB mode needs export only for application model columns.
 
-For ongoing housekeeping, arrange invocation of `interpresso:prune-batches` and, if desired, `interpresso:send-automatic-pending-translations-notification` in the host application's scheduler or operational tooling. Neither setting nor command registers a schedule automatically. Pending reminders also require the automatic notification toggle and a functioning queue/mail configuration.
+For ongoing housekeeping, enable `interpresso.schedule.prune_batches` and, if desired, `interpresso.schedule.pending_notifications`, or arrange your own schedule. Both default to false and are independent of `interpresso.schedule.queue_worker`; all require a deferring connection for package scheduling. Pending reminders also require the automatic notification toggle and a functioning queue/mail configuration.
 
 For cancelled or stuck work, use **Languages > Delete running Batch (Jobs)** rather than expecting pruning to stop it. That action cancels matching unfinished batches and deletes database queue rows. It does not terminate executing worker processes or roll back completed changes.

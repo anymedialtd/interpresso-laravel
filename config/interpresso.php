@@ -108,6 +108,25 @@ return [
 
     'batch_name' => 'languageBatch',
 
+    // Bounded queue:work invocation for cron. All limits must be positive integers.
+    // max_time (seconds) and memory (MB) are checked between jobs; timeout is
+    // Laravel's per-job limit in seconds (requires PCNTL in PHP CLI).
+    'queue_worker' => [
+        'max_time' => env('INTERPRESSO_QUEUE_WORKER_MAX_TIME', 50),
+        'max_jobs' => env('INTERPRESSO_QUEUE_WORKER_MAX_JOBS', 100),
+        'memory' => env('INTERPRESSO_QUEUE_WORKER_MEMORY', 128),
+        'timeout' => env('INTERPRESSO_QUEUE_WORKER_TIMEOUT', 60),
+    ],
+
+    // Opt in independently. No entries are registered for a non-deferring queue.
+    // Shared hosting: enable queue_worker with QUEUE_CONNECTION=database and
+    // invoke php artisan schedule:run from one cron entry every minute.
+    'schedule' => [
+        'queue_worker' => env('INTERPRESSO_SCHEDULE_QUEUE_WORKER', false),
+        'prune_batches' => env('INTERPRESSO_SCHEDULE_PRUNE_BATCHES', false),
+        'pending_notifications' => env('INTERPRESSO_SCHEDULE_PENDING_NOTIFICATIONS', false),
+    ],
+
     // Seconds before an abandoned process lock expires. Long imports should
     // heartbeat through the acquired ProcessLock handle's refresh() method.
     'process_lock_ttl' => env('INTERPRESSO_PROCESS_LOCK_TTL', 900),

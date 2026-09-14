@@ -37,8 +37,8 @@ return [
     'batch_progress' => 'Progression du traitement par lot',
     'app_name' => 'Interpresso pour Laravel',
     'something_wrong' => 'Une erreur s\'est produite. Contactez l\'administrateur du site.',
-    'queue_required' => 'Aucun worker de file d\'attente n\'est configuré. Cette opération s\'exécuterait dans la requête web et serait interrompue par la limite de temps PHP. Exécutez : :command',
-    'queue_worker_required' => 'Cette action nécessite une file d\'attente en arrière-plan pour éviter la limite de temps PHP des requêtes web. Configurez une connexion de file d\'attente avec une base de données ou Redis, puis exécutez : :command',
+    'queue_required' => 'Aucune file d\'attente en arrière-plan n\'est configurée. Cette opération s\'exécuterait dans la requête web et serait interrompue par la limite de temps PHP. Exécutez : :command. Pour utiliser ce bouton sans Supervisor, définissez QUEUE_CONNECTION=database, activez interpresso.schedule.queue_worker et exécutez php artisan schedule:run chaque minute via cron (recommandé pour un hébergement mutualisé).',
+    'queue_worker_required' => 'Cette action nécessite une file d\'attente en arrière-plan pour éviter la limite de temps PHP des requêtes web. Configurez une connexion avec une base de données ou Redis, puis exécutez : :command. Sans Supervisor, définissez QUEUE_CONNECTION=database, activez interpresso.schedule.queue_worker et exécutez php artisan schedule:run chaque minute via cron pour utiliser ce bouton (recommandé pour un hébergement mutualisé).',
     'reload_suggestion' => '<br><span class="text-red-500 text-xs">Vous devrez peut-être recharger la page pour voir les modifications.</span>',
     'import' => [
         'start_message' => 'Traitement démarré. Vous recevrez un message en bas à droite une fois l\'opération terminée.',

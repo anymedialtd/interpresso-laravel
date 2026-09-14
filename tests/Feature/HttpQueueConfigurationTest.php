@@ -57,6 +57,11 @@ class HttpQueueConfigurationTest extends BaseTestCase
         config(['queue.default' => 'maintenance', 'queue.connections.maintenance' => ['driver' => $driver]]);
         Queue::fake();
         $command = str_replace(':translator', (string) Translator::where('admin', true)->firstOrFail()->id, $command);
+        $message = QueueConfiguration::refusalMessage($command);
+        $this->assertStringContainsString($command, $message);
+        $this->assertStringContainsString('QUEUE_CONNECTION=database', $message);
+        $this->assertStringContainsString('interpresso.schedule.queue_worker', $message);
+        $this->assertStringContainsString('php artisan schedule:run', $message);
         $before = $this->databaseSnapshot();
         if ($route === 'interpresso.api.force-export') {
             $this->postJson($url, ['api_key' => 'queue-test-key'])->assertStatus(503)
@@ -137,7 +142,8 @@ class HttpQueueConfigurationTest extends BaseTestCase
         $before = Translation::orderBy('id')->get()->toArray();
         $this->post(route('interpresso.translations.update-all', ['language' => $root->language, 'id' => $root->id]), ['translatedValue' => 'Must not save'])
             ->assertRedirect()->assertSessionMissing('batch_id')->assertSessionHas('toast.type', 'WARNING')
-            ->assertSessionHas('toast.message', fn ($message) => str_contains($message, 'php artisan queue:work'));
+            ->assertSessionHas('toast.message', fn ($message) => str_contains($message, 'php artisan queue:work')
+                && str_contains($message, 'interpresso.schedule.queue_worker') && str_contains($message, 'php artisan schedule:run'));
         $this->assertSame($before, Translation::orderBy('id')->get()->toArray());
         $this->assertDatabaseCount('job_batches', 0);
         Queue::assertNothingPushed();

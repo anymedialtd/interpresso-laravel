@@ -37,8 +37,8 @@ return [
     'batch_progress' => 'Progreso del procesamiento por lotes',
     'app_name' => 'Interpresso para Laravel',
     'something_wrong' => 'Se ha producido un error. Contacte con el administrador del sitio.',
-    'queue_required' => 'No hay ningún proceso de trabajo de colas configurado. La operación se ejecutaría dentro de la petición web y se interrumpiría al alcanzar el límite de tiempo de PHP. Ejecute: :command',
-    'queue_worker_required' => 'Esta acción requiere una cola en segundo plano para evitar el límite de tiempo de PHP para peticiones web. Configure una conexión de colas con base de datos o Redis y ejecute: :command',
+    'queue_required' => 'No hay ninguna cola en segundo plano configurada. La operación se ejecutaría dentro de la petición web y se interrumpiría al alcanzar el límite de tiempo de PHP. Ejecute: :command. Para usar este botón sin Supervisor, configure QUEUE_CONNECTION=database, active interpresso.schedule.queue_worker y ejecute php artisan schedule:run cada minuto mediante cron (recomendado para alojamiento compartido).',
+    'queue_worker_required' => 'Esta acción requiere una cola en segundo plano para evitar el límite de tiempo de PHP para peticiones web. Configure una conexión de colas con base de datos o Redis y ejecute: :command. Sin Supervisor, configure QUEUE_CONNECTION=database, active interpresso.schedule.queue_worker y ejecute php artisan schedule:run cada minuto mediante cron para usar este botón (recomendado para alojamiento compartido).',
     'reload_suggestion' => '<br><span class="text-red-500 text-xs">Puede que deba recargar la página para ver los cambios.</span>',
     'import' => [
         'start_message' => 'Proceso iniciado. Recibirá un mensaje en la esquina inferior derecha cuando termine.',
