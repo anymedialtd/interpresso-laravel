@@ -209,6 +209,7 @@ trait CanCreateTranslation
      */
     protected function massCreateEloquentTranslations(array $translationIds, Language $language, Language $rootLanguage): void
     {
+        $translations = [];
         try {
             $translationsArray = [];
             $openTranslateService = resolve(OpenAITranslationService::class);

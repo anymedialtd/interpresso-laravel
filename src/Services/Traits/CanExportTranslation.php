@@ -27,6 +27,7 @@ trait CanExportTranslation
     protected function updateTranslation(string $type, string $languageCode, bool $isVendor, string $namespace = '', string $group = '', bool $forceExportAll = false): void
     {
         $path = null;
+        $query = null;
         try {
             $query = Translation::where([
                 ['type', '=', $type ],
@@ -67,7 +68,7 @@ trait CanExportTranslation
                 'errorId' => $errorId,
                 'errorMessage' => $e->getMessage()
             ]);
-            $query->update(['exported' => false]);
+            $query?->update(['exported' => false]);
             Translation::invalidateCacheAfterWrite();
             throw new ExportFileException($e->getMessage(), __('interpresso::exceptions.export_file_error', ['relativePathname' => $path, 'errorId' => $errorId]), 0);
         }

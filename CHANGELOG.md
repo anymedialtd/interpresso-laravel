@@ -11,9 +11,15 @@ All notable changes to this project are documented here. The format follows
 - **Breaking: Interpresso identity.** The Composer package is `anymedialtd/interpresso-laravel`, with the `AnyMedia\Interpresso\` PHP namespace and `InterpressoServiceProvider` / `InterpressoTranslatorServiceProvider`. Configuration, view/translation namespaces, routes, commands, publish tags, middleware, API endpoint prefixes, assets and the theme cookie use the Interpresso identity. Environment variables use `INTERPRESSO_`.
 - Default package tables, the translator guard and cache prefix now use `interpresso_`. Table access remains configurable; existing installations must retain their current table names in `config/interpresso.php` or migrate the tables themselves. Configured screen URL segments and the Language, Translation and Translator model names are unchanged. See [the adoption guide](docs/INSTALLATION.md#adopting-the-interpresso-identity).
 
+- Published assets are rebuilt with daisyUI 5.7.50 and Vite 8.3.5; republish them with `php artisan vendor:publish --tag=interpresso-public --force`.
+
 ### Removed
 
 - Internal planning and PHPUnit backup artifacts.
+
+### Fixed
+
+- A file export or model translation batch that fails before its query is built now reports the original error instead of an undefined-variable error from the failure handler.
 
 ## [2.0.0] - 2026-09-14
 
