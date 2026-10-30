@@ -58,7 +58,9 @@ class MissingTranslationService
             /** @var list<int> $languageIds Language model primary keys. */
             $languageIds = $this->languages->pluck('id')->toArray();
             foreach ($languageIds as $id) {
-                if ($this->batch->fresh()->cancelled()) break;
+                /** @var Batch|null $current Laravel 12 types fresh() as non-null, but a pruned batch is gone. */
+                $current = $this->batch->fresh();
+                if ($current === null || $current->cancelled()) break;
                 if ($id !== $language->id) {
                     $this->batch->add(new FindMissingTranslationsByLanguage([$id], $language->id));
                 }

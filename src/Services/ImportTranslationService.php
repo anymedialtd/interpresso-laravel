@@ -29,8 +29,9 @@ class ImportTranslationService
             fn ($query) => $query->where('code', config('app.locale')))->orderBy('id')->get();
         $roots = [['path' => App::langPath(), 'namespace' => '', 'vendor' => false]];
         if ($settings->import_vendor) {
-            foreach (Lang::getLoader()->namespaces() as $namespace => $directory) {
-                if (!is_string($directory)) throw new \TypeError('Translation namespace directories must be strings.');
+            /** @var array<string, string> $namespaces Laravel 12 types this as a bare array. */
+            $namespaces = Lang::getLoader()->namespaces();
+            foreach ($namespaces as $namespace => $directory) {
                 // Preserve precedence: published vendor entries are imported first.
                 $roots[] = ['path' => App::langPath('vendor/' . $namespace), 'namespace' => $namespace, 'vendor' => true];
                 $roots[] = ['path' => $directory, 'namespace' => $namespace, 'vendor' => true];
@@ -250,9 +251,10 @@ class ImportTranslationService
     protected function importVendorTranslations(): void
     {
         if(Setting::getCached()->import_vendor) {
-            $loader = Lang::getLoader();
+            /** @var array<string, string> $namespaces Laravel 12 types this as a bare array. */
+            $namespaces = Lang::getLoader()->namespaces();
             $this->isVendor = true;
-            foreach ($loader->namespaces() as $namespace => $directory) {
+            foreach ($namespaces as $namespace => $directory) {
                 $this->namespace = $namespace;
                 $publishedVendorDirectory = App::langPath('vendor/' . $this->namespace);
                 $this->createMissingDirectory($publishedVendorDirectory);
@@ -260,9 +262,6 @@ class ImportTranslationService
                 $this->root = $publishedVendorDirectory;
                 $this->importFromRoot();
                 // Look for not published lang files
-                if (!is_string($directory)) {
-                    throw new \TypeError('Translation namespace directories must be strings.');
-                }
                 $this->root = $directory;
                 $this->importFromRoot();
             };

@@ -85,3 +85,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: ./tests/e2e/seed.sh
       - run: npx playwright test
+      # The HTTP server's exceptions only reach the Testbench skeleton log, never
+      # the Playwright output, so a server-side 500 is otherwise undiagnosable.
+      - name: Show the e2e server log
+        if: failure()
+        run: tail -n 200 vendor/orchestra/testbench-core/laravel/storage/logs/laravel.log || true

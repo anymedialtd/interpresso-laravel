@@ -17,6 +17,9 @@ export default defineConfig({
     workers: 1,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
+    // A systemic failure (every page 500s) otherwise runs all tests with
+    // retries and hits the 30 minute job timeout before reporting anything.
+    maxFailures: process.env.CI ? 5 : 0,
     reporter: process.env.CI ? 'github' : 'list',
 
     use: {
