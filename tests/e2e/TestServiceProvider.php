@@ -16,7 +16,15 @@ class TestServiceProvider extends ServiceProvider
         }
         $directory = __DIR__ . '/.data';
         $this->app->useLangPath($directory . '/lang');
+        // Testbench disables Laravel's getenv() reader, and under the production
+        // php.ini (variables_order = "GPCS", as on CI) the built-in server does not
+        // expose exported variables through $_ENV or $_SERVER either. env() then
+        // never sees what serve.sh exports, so pin the e2e state here explicitly.
         config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => $directory . '/e2e.sqlite',
+            'interpresso.db_connection' => 'sqlite',
+            'session.driver' => 'file',
             'app.url' => 'http://127.0.0.1:' . (getenv('PORT') ?: getenv('E2E_PORT') ?: '8099'),
             'interpresso.main_server_domain' => 'http://127.0.0.1:' . (getenv('PORT') ?: getenv('E2E_PORT') ?: '8099'),
             'app.locale' => is_file($directory . '/locale') ? trim(file_get_contents($directory . '/locale')) : 'en',
